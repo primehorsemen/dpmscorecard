@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>OKR 1 — Continuous Value Creation | Department Tracker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  :root{
+    --ink:#101826;
+    --ink-soft:#4a5568;
+    --paper:#F5F6F8;
+    --card:#FFFFFF;
+    --line:#E3E6EC;
+    --navy:#12213E;
+    --navy-2:#1E3A66;
+    --gold:#C9A24B;
+
+    --s-ontrack:#D8A94A;
+    --s-progress:#E28A3D;
+    --s-blocked:#7C2430;
+    --s-notstarted:#C64545;
+    --s-metbase:#2563C7;
+    --s-metstretch:#00A19A;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .topbar{
+    background:linear-gradient(135deg,var(--navy) 0%,var(--navy-2) 100%);
+    color:#fff;
+    padding:28px clamp(16px,4vw,48px) 24px;
+    position:relative;
+    overflow:hidden;
+  }
+  .topbar::after{
+    content:"";
+    position:absolute; right:-60px; top:-60px;
+    width:260px; height:260px; border-radius:50%;
+    background:radial-gradient(circle, rgba(201,162,75,0.25) 0%, transparent 70%);
+  }
+  .eyebrow{
+    font-size:11px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--gold); font-weight:700; margin-bottom:6px;
+  }
+  h1{ font-size:clamp(22px,3vw,30px); margin:0 0 4px; font-weight:700; letter-spacing:-0.01em; }
+  .sub{ color:#B9C3D6; font-size:13.5px; margin:0; }
+  .top-meta{ display:flex; gap:28px; flex-wrap:wrap; margin-top:20px; }
+  .meta-chip{
+    background:rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.14);
+    border-radius:10px; padding:10px 16px; min-width:150px;
+  }
+  .meta-chip .label{font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:#9FADC6;}
+  .meta-chip .val{font-size:17px; font-weight:700; color:#fff; margin-top:2px;}
+
+  .legend-bar{
+    display:flex; gap:18px; flex-wrap:wrap; align-items:center;
+    padding:14px clamp(16px,4vw,48px);
+    background:var(--card); border-bottom:1px solid var(--line);
+    font-size:12.5px; color:var(--ink-soft);
+    position:sticky; top:0; z-index:5;
+  }
+  .legend-item{display:flex; align-items:center; gap:6px;}
+  .dot{width:10px; height:10px; border-radius:50%; flex:none; box-shadow:inset 0 0 0 1px rgba(0,0,0,0.08);}
+  .dot.ontrack{background:var(--s-ontrack);}
+  .dot.progress{background:var(--s-progress);}
+  .dot.blocked{background:var(--s-blocked);}
+  .dot.notstarted{background:var(--s-notstarted);}
+  .dot.metbase{background:var(--s-metbase);}
+  .dot.metstretch{background:var(--s-metstretch);}
+
+  main{padding:28px clamp(16px,4vw,48px) 60px;}
+  .section-head{ display:flex; align-items:baseline; gap:10px; margin:38px 0 14px; }
+  .section-head:first-child{margin-top:0;}
+  .section-head .num{ font-family:Georgia, 'Times New Roman', serif; font-style:italic; font-size:14px; color:var(--gold); font-weight:700; }
+  .section-head h2{ font-size:15.5px; margin:0; text-transform:uppercase; letter-spacing:.06em; color:var(--navy); }
+  .section-head .count{ margin-left:auto; font-size:12px; color:var(--ink-soft); }
+
+  .cards{display:flex; flex-direction:column; gap:10px;}
+
+  .row-card{
+    position:relative;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-left:4px solid var(--line);
+    border-radius:10px;
+    padding:14px 44px 14px 18px;
+    display:grid;
+    grid-template-columns: 1.4fr 1fr 1fr 1fr 2.6fr auto;
+    gap:14px;
+    align-items:center;
+    transition:box-shadow .15s ease;
+  }
+  .row-card.s-ontrack{border-left-color:var(--s-ontrack);}
+  .row-card.s-progress{border-left-color:var(--s-progress);}
+  .row-card.s-blocked{border-left-color:var(--s-blocked);}
+  .row-card.s-notstarted{border-left-color:var(--s-notstarted);}
+  .row-card.s-metbase{border-left-color:var(--s-metbase);}
+  .row-card.s-metstretch{border-left-color:var(--s-metstretch);}
+
+  .col-label{font-size:9.5px; text-transform:uppercase; letter-spacing:.07em; color:#98A2B3; margin-bottom:3px; display:block;}
+  .focal-name{font-weight:700; font-size:14px; color:var(--ink);}
+  .focal-owner{font-size:12px; color:var(--ink-soft); margin-top:1px;}
+  .target-val{font-size:13px; font-weight:600; color:var(--ink);}
+  .target-unit{font-size:11px; color:var(--ink-soft); font-weight:400;}
+  .updates ul{margin:0; padding-left:16px;}
+  .updates li{margin-bottom:2px; font-size:12.8px; color:var(--ink-soft); line-height:1.5;}
+  .stamp{font-size:10.5px; color:#98A2B3; margin-top:6px; font-style:italic;}
+
+  .status-pill{display:flex; align-items:center; gap:7px; justify-self:end; font-size:11.5px; font-weight:600; white-space:nowrap;}
+
+  .edit-toggle{
+    position:absolute; top:12px; right:12px;
+    width:26px; height:26px; border-radius:7px;
+    border:1px solid var(--line); background:var(--paper);
+    cursor:pointer; font-size:13px; color:var(--ink-soft);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .edit-toggle:hover{background:#EDEFF3; color:var(--navy);}
+
+  .edit-form{display:none; grid-column:1 / -1; margin-top:10px; padding-top:12px; border-top:1px dashed var(--line);}
+  .edit-form.open{display:grid; gap:10px; grid-template-columns:1fr 1fr 1fr;}
+  .edit-form .full{grid-column:1 / -1;}
+  .edit-form label{font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:#98A2B3; display:block; margin-bottom:4px;}
+  .edit-form input[type=text], .edit-form textarea, .edit-form select{
+    width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:7px;
+    font-size:12.8px; font-family:inherit; background:#fff; color:var(--ink); outline:none;
+  }
+  .edit-form input:focus, .edit-form textarea:focus, .edit-form select:focus{border-color:var(--navy-2);}
+  .edit-form textarea{min-height:64px; resize:vertical;}
+  .edit-actions{display:flex; gap:8px; align-items:center;}
+  .btn{ padding:8px 16px; border-radius:7px; font-size:12.5px; font-weight:600; cursor:pointer; border:1px solid transparent; }
+  .btn-save{background:var(--navy); color:#fff;}
+  .btn-save:hover{background:var(--navy-2);}
+  .btn-save:disabled{opacity:.6; cursor:default;}
+  .btn-cancel{background:transparent; border-color:var(--line); color:var(--ink-soft);}
+  .btn-cancel:hover{background:#EDEFF3;}
+  .save-note{font-size:11.5px; color:var(--ink-soft); margin-right:auto;}
+
+  @media (max-width: 980px){
+    .row-card{grid-template-columns: 1fr 1fr; grid-template-areas:
+      "focal focal" "base stretch" "updates updates" "status status";}
+    .cell-focal{grid-area:focal;}
+    .cell-base{grid-area:base;}
+    .cell-stretch{grid-area:stretch;}
+    .cell-current{display:none;}
+    .updates{grid-area:updates;}
+    .status-pill{grid-area:status; justify-self:start; margin-top:4px;}
+    .edit-form.open{grid-template-columns:1fr;}
+  }
+
+  .search-wrap{max-width:340px; margin-left:auto;}
+  #search{ width:100%; padding:8px 12px; border-radius:8px; border:1px solid var(--line); font-size:12.5px; outline:none; background:var(--paper); }
+  #search:focus{border-color:var(--navy-2);}
+  .hidden{display:none !important;}
+  .status-badge{
+    font-size:10.5px; padding:3px 8px; border-radius:20px; font-weight:600; color:#fff;
+  }
+  footer{ padding:18px clamp(16px,4vw,48px) 40px; color:#98A2B3; font-size:11.5px; }
+
+  /* ---------- TABS ---------- */
+  .tabs{
+    display:flex; gap:6px; padding:14px clamp(16px,4vw,48px) 0;
+    background:var(--card); border-bottom:1px solid var(--line);
+  }
+  .tab-btn{
+    padding:10px 18px; border:none; background:transparent; cursor:pointer;
+    font-size:13px; font-weight:600; color:var(--ink-soft);
+    border-bottom:2px solid transparent; margin-bottom:-1px;
+  }
+  .tab-btn:hover{color:var(--navy);}
+  .tab-btn.active{color:var(--navy); border-bottom-color:var(--gold);}
+  .page{display:none;}
+  .page.active{display:block;}
+
+  /* ---------- KPI CARDS ---------- */
+  .kpi-row{display:flex; flex-wrap:wrap; gap:12px; margin-bottom:8px;}
+  .kpi-card{
+    flex:1 1 130px; background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:16px; position:relative; overflow:hidden;
+  }
+  .kpi-dot{width:9px; height:9px; border-radius:50%; margin-bottom:8px;}
+  .kpi-val{font-size:26px; font-weight:800; color:var(--ink); line-height:1;}
+  .kpi-label{font-size:11.5px; color:var(--ink-soft); margin-top:6px;}
+
+  /* ---------- SECTION BARS ---------- */
+  .section-bar-row{
+    display:grid; grid-template-columns:170px 1fr 90px; align-items:center; gap:14px;
+    background:var(--card); border:1px solid var(--line); border-radius:10px;
+    padding:12px 16px; margin-bottom:8px;
+  }
+  .section-bar-label{font-size:13px; font-weight:700; color:var(--ink);}
+  .section-bar-track{
+    display:flex; height:14px; border-radius:7px; overflow:hidden; background:var(--paper);
+  }
+  .section-bar-track .seg{height:100%;}
+  .section-bar-count{font-size:11.5px; color:var(--ink-soft); text-align:right;}
+
+  /* ---------- TIMELINE ---------- */
+  .timeline-wrap{
+    background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:24px 24px 12px;
+  }
+  .timeline-list{position:relative; padding-left:26px;}
+  .timeline-list::before{
+    content:""; position:absolute; left:7px; top:4px; bottom:4px; width:2px; background:var(--line);
+  }
+  .timeline-item{position:relative; padding-bottom:24px;}
+  .timeline-item:last-child{padding-bottom:2px;}
+  .timeline-item::before{
+    content:""; position:absolute; left:-26px; top:2px; width:13px; height:13px; border-radius:50%;
+    background:var(--gold); border:2px solid #fff; box-shadow:0 0 0 1px var(--line);
+  }
+  .timeline-item.today::before{background:var(--navy); width:15px; height:15px; left:-27px;}
+  .timeline-item.yearend::before{background:var(--s-metstretch); width:15px; height:15px; left:-27px;}
+  .timeline-date{font-size:11px; font-weight:700; color:var(--navy); text-transform:uppercase; letter-spacing:.04em;}
+  .timeline-label{font-size:13.5px; color:var(--ink); margin-top:2px; font-weight:600;}
+  .timeline-sub{font-size:12px; color:var(--ink-soft); margin-top:2px;}
+
+  /* ---------- PROJECTION BOX ---------- */
+  .projection-box{
+    background:linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 100%);
+    color:#fff; border-radius:12px; padding:24px 26px;
+  }
+  .projection-box p{margin:0 0 14px; font-size:13.5px; line-height:1.6; color:#D9E0EE;}
+  .projection-box p:last-child{margin-bottom:0;}
+  .projection-stats{display:flex; gap:22px; flex-wrap:wrap; margin-bottom:16px;}
+  .projection-stat .n{font-size:22px; font-weight:800; color:var(--gold);}
+  .projection-stat .l{font-size:11px; color:#9FADC6; text-transform:uppercase; letter-spacing:.05em; margin-top:2px;}
+
+  /* ---------- MONTH-GROUPED UPDATES (within row cards) ---------- */
+  .update-group{margin-bottom:8px;}
+  .update-group:last-child{margin-bottom:0;}
+  .update-group-label{
+    font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--gold);
+    font-weight:700; margin-bottom:2px;
+  }
+  .update-group.baseline .update-group-label{color:#98A2B3;}
+  .month-select-row{display:flex; gap:10px; align-items:flex-end;}
+  .month-select-row > div{flex:1;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="eyebrow">GPE &nbsp;·&nbsp; Department OKR Tracker</div>
+  <h1>OKR 1 — Continuous Value Creation</h1>
+  <p class="sub">Live status of value-creation focals and departmental operations · editable by each person-in-charge</p>
+  <div class="top-meta">
+    <div class="meta-chip"><div class="label">Budget FY2025</div><div class="val">MYR 6.8 Mil</div></div>
+    <div class="meta-chip"><div class="label">Value Realized</div><div class="val">21 Mil</div></div>
+    <div class="meta-chip"><div class="label">Value Identified</div><div class="val">66 Mil</div></div>
+    <div class="meta-chip"><div class="label">Projects Deployed</div><div class="val">21 / 40</div></div>
+  </div>
+</div>
+
+<div class="legend-bar">
+  <div class="legend-item"><span class="dot ontrack"></span> On track</div>
+  <div class="legend-item"><span class="dot progress"></span> In progress</div>
+  <div class="legend-item"><span class="dot blocked"></span> Blocked / pending approval</div>
+  <div class="legend-item"><span class="dot notstarted"></span> Not started / no activity</div>
+  <div class="legend-item"><span class="dot metbase"></span> Met Base</div>
+  <div class="legend-item"><span class="dot metstretch"></span> Met Stretch</div>
+  <div class="search-wrap"><input id="search" type="text" placeholder="Search focal, owner or update…"></div>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" data-page="dashboard">Dashboard</button>
+  <button class="tab-btn" data-page="summary">Summary &amp; Year-End Projection</button>
+</div>
+
+<section id="page-dashboard" class="page active">
+<main id="main">
+  <div id="load-note" style="font-size:12px;color:#98A2B3;margin-bottom:12px;">Loading saved updates…</div>
+</main>
+</section>
+
+<section id="page-summary" class="page">
+  <main>
+    <div class="section-head"><span class="num">IV.</span><h2>Overview</h2></div>
+    <div class="kpi-row" id="kpi-row"></div>
+
+    <div class="section-head"><span class="num">V.</span><h2>Status Distribution by Section</h2></div>
+    <div id="section-bars"></div>
+
+    <div class="section-head"><span class="num">VI.</span><h2>Timeline to Year-End 2026</h2></div>
+    <div class="timeline-wrap"><div class="timeline-list" id="timeline"></div></div>
+
+    <div class="section-head"><span class="num">VII.</span><h2>Year-End Projection</h2></div>
+    <div class="projection-box" id="projection-box"></div>
+  </main>
+</section>
+
+<footer>Rebuilt from department OKR tracker screenshots · click the pencil on any row to update it — changes sync to everyone via Firebase in real time. Requires a valid firebaseConfig (see the script comment near the top of the file).</footer>
+
+<script type="module">
+/* ============================================================
+   FIREBASE SETUP — fill this in before the dashboard will save/sync
+   ============================================================
+   1. Go to https://console.firebase.google.com → Add project (free).
+   2. Inside the project: Build → Firestore Database → Create database
+      → start in "Test mode" (or set the rules shown below).
+   3. Project settings (gear icon) → General → "Your apps" → Add app → Web (</>)
+      → copy the firebaseConfig object it gives you and paste it below.
+   4. Firestore → Rules tab → for a quick internal team tool, use:
+        rules_version = '2';
+        service cloud.firestore {
+          match /databases/{database}/documents {
+            match /okr1_updates/{docId} {
+              allow read, write: if true;
+            }
+          }
+        }
+      (This has NO access control — anyone with the file can edit any row.
+       Fine for a trusted internal team; tighten later with Firebase Auth
+       if you need per-person permissions.)
+   5. Host this .html file anywhere (GitHub Pages, SharePoint, etc.) —
+      Firebase is what makes the data sync in real time between everyone
+      who opens it, regardless of where the file itself is hosted.
+   ============================================================ */
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js';
+import { getFirestore, doc, setDoc, collection, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBNpSzd50m7T7cElmj2Mn-RdKkj-e60pbg",
+  authDomain: "dpm-scorecard.firebaseapp.com",
+  projectId: "dpm-scorecard",
+  storageBucket: "dpm-scorecard.firebasestorage.app",
+  messagingSenderId: "529867427312",
+  appId: "1:529867427312:web:f82f3990c6cbf446582135"
+};
+
+const ROWS_COLLECTION = "okr1_updates";
+let db = null;
+try{
+  const fbApp = initializeApp(firebaseConfig);
+  db = getFirestore(fbApp);
+}catch(e){
+  console.error("Firebase failed to initialize — paste your real firebaseConfig at the top of the script.", e);
+}
+const SECTIONS = {1:"Value Creations", 2:"Number of Deployments", 3:"Team & Operations"};
+const STATUS_LABEL = {ontrack:"On track", progress:"In progress", blocked:"Blocked", notstarted:"Not started", metbase:"Met Base", metstretch:"Met Stretch"};
+const STATUS_COLOR = {ontrack:"var(--s-ontrack)", progress:"var(--s-progress)", blocked:"var(--s-blocked)", notstarted:"var(--s-notstarted)", metbase:"var(--s-metbase)", metstretch:"var(--s-metstretch)"};
+
+const ROWS = [{"id": "vc-tech-robotics", "section": 1, "focal": "Technologies & Robotics", "owner": "Ruzaini", "base": "100 (VR)", "stretch": "150 (VR)", "unit": "MYR Mil", "status": "ontrack", "updates": ["Value Realized (MOOT & OGSD) \u2014 21 Mil"]}, {"id": "vc-ppm", "section": 1, "focal": "PPM", "owner": "Hakim", "base": "100 (VR)", "stretch": "150 (VR)", "unit": "MYR Mil", "status": "blocked", "updates": ["Value Identified (25 UK-TA) \u2014 66 Mil"]}, {"id": "vc-pcc", "section": 1, "focal": "PCC", "owner": "Amalin", "base": "(VR)", "stretch": "(VR)", "unit": "MYR Mil", "status": "ontrack", "updates": ["Anticipate projects (list attached in source tracker)"]}, {"id": "vc-ai", "section": 1, "focal": "AI", "owner": "Asyraf / Alvin \u2014 Completion track", "base": "50 (VI)", "stretch": "100 (VI)", "unit": "MYR Mil", "status": "blocked", "updates": ["Still pending AA approval", "AA requested GPE LT review", "Presented to GPE LT; currently amending per their feedback", "To present to GPE LT with latest amendments prior to AA approval"]}, {"id": "dep-digital", "section": 2, "focal": "Digital", "owner": "", "base": "10+10+10 (VR)", "stretch": "15+15+15 (VR)", "unit": "", "status": "ontrack", "updates": ["11 projects deployed"]}, {"id": "dep-tech-robotics", "section": 2, "focal": "Technologies & Robotics", "owner": "", "base": "10 projects", "stretch": "15 projects", "unit": "", "status": "progress", "updates": ["2 projects deployed, 7 projects pending"]}, {"id": "dep-pcc", "section": 2, "focal": "PCC", "owner": "", "base": "5 projects", "stretch": "10 projects", "unit": "", "status": "ontrack", "updates": ["1 project confirmed & on-boarding: SEPAT Project"]}, {"id": "dep-qplus", "section": 2, "focal": "Q+", "owner": "", "base": "10 projects", "stretch": "15 projects", "unit": "", "status": "progress", "updates": ["1 project confirmed & on-boarding: SEPAT Project", "Focal to get latest project list from PP&C, Eri Shahril"]}, {"id": "ops-budget", "section": 3, "focal": "Budget", "owner": "Steph", "base": "10", "stretch": "15", "unit": "MYR", "status": "notstarted", "updates": ["No utilization yet (Budget FY2025: 6.8 Mil)"]}, {"id": "ops-comms", "section": 3, "focal": "Communications", "owner": "Nabilah", "base": "2 sessions/yr", "stretch": "4 sessions/yr", "unit": "", "status": "notstarted", "updates": ["First session next week for Training & Capabilities; will plan bi-weekly meeting updates on available training sessions & KPI tracking per staff"]}, {"id": "ops-training", "section": 3, "focal": "Training & Capabilities", "owner": "Alvin", "base": "\u2014", "stretch": "\u2014", "unit": "Quality", "status": "notstarted", "updates": ["Planning underway alongside Communications workstream"]}, {"id": "ops-conference", "section": 3, "focal": "Conference", "owner": "Ben / Athira", "base": "1 con/yr", "stretch": "3 con/yr", "unit": "", "status": "notstarted", "updates": ["No activity planned yet for April"]}, {"id": "ops-event", "section": 3, "focal": "Event Management", "owner": "", "base": "1 event/yr", "stretch": "3 events/yr", "unit": "", "status": "ontrack", "updates": ["No activity planned yet for April"]}, {"id": "ops-internal", "section": 3, "focal": "Internal Engagement", "owner": "Mukhlis / Shafiqah", "base": "2 sessions/yr", "stretch": "4 sessions/yr", "unit": "", "status": "ontrack", "updates": ["Completed All Star Assembly #1", "Completed Life at DPM #1", "Next: All-Star Assembly #2, Life at DPM #2"]}, {"id": "ops-ltseating", "section": 3, "focal": "LT Seating", "owner": "Asyraf", "base": "1 sitting/mo", "stretch": "2 sittings/mo", "unit": "", "status": "progress", "updates": ["Completed LT seating first session on 6 April", "Next LT seating in May"]}, {"id": "ops-contract", "section": 3, "focal": "Contract", "owner": "Christ", "base": "1 update/mo", "stretch": "1 update/mo", "unit": "", "status": "notstarted", "updates": ["5 contracts expiring in 2026", "Q3: Ansys (29 Aug), MATLAB (5 Sep), Ansys License renewal (24 Nov)", "Q4: eXsilentia (24 Nov), Palisade (31 Dec), GPROMS"]}, {"id": "ops-gdc", "section": 3, "focal": "GDC", "owner": "Nas", "base": "2 sessions/yr", "stretch": "4 sessions/yr", "unit": "", "status": "notstarted", "updates": ["TBA"]}, {"id": "ops-stakeholder", "section": 3, "focal": "Business Stakeholder", "owner": "TBA", "base": "\u2014", "stretch": "\u2014", "unit": "", "status": "notstarted", "updates": ["TBA"]}];
+
+const overrides = {}; // id -> {current, status, monthlyUpdates:{ "2026-07":[...] }, by, at}
+
+const CURRENT_MONTH_KEY = "2026-07";
+const MONTHS = Array.from({length:12}, (_, i) => {
+  const d = new Date(2026, i, 1);
+  return {key: `2026-${String(i+1).padStart(2,'0')}`, label: d.toLocaleDateString('en-MY', {month:'long', year:'numeric'})};
+});
+
+function escapeHtml(s){
+  return (s||"").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function parseNumeric(str){
+  if(!str) return null;
+  const cleaned = String(str).replace(/,/g,'');
+  const plusMatch = cleaned.match(/^\s*[\d.]+(\s*\+\s*[\d.]+)+/);
+  if(plusMatch){
+    const nums = plusMatch[0].split('+').map(s => parseFloat(s.trim()));
+    return nums.reduce((a,b) => a+b, 0);
+  }
+  const m = cleaned.match(/[\d.]+/);
+  return m ? parseFloat(m[0]) : null;
+}
+
+function autoStatusFor(row, currentStr, fallbackStatus){
+  const curNum = parseNumeric(currentStr);
+  if(curNum === null) return fallbackStatus;
+  const baseNum = parseNumeric(row.base);
+  const stretchNum = parseNumeric(row.stretch);
+  if(stretchNum !== null && curNum >= stretchNum) return "metstretch";
+  if(baseNum !== null && curNum >= baseNum) return "metbase";
+  return fallbackStatus;
+}
+
+function effective(row){
+  const o = overrides[row.id];
+  return {
+    current: o?.current ?? row.current ?? "",
+    status: o?.status ?? row.status,
+    monthlyUpdates: o?.monthlyUpdates || {},
+    stampBy: o?.by || null,
+    stampAt: o?.at || null,
+  };
+}
+
+function buildUpdateGroups(row, eff){
+  const groups = [];
+  if(row.updates && row.updates.length){
+    groups.push({label: "Baseline", items: row.updates, cls: "baseline"});
+  }
+  Object.keys(eff.monthlyUpdates).sort().forEach(mk => {
+    const items = eff.monthlyUpdates[mk];
+    if(items && items.length){
+      const monthDef = MONTHS.find(m => m.key === mk);
+      groups.push({label: monthDef ? monthDef.label : mk, items, cls: ""});
+    }
+  });
+  return groups;
+}
+
+function renderAll(){
+  const main = document.getElementById('main');
+  main.innerHTML = "";
+  [1,2,3].forEach(secNum => {
+    const secRows = ROWS.filter(r => r.section === secNum);
+    if(!secRows.length) return;
+    const roman = secNum === 1 ? "I." : secNum === 2 ? "II." : "III.";
+    const head = document.createElement('div');
+    head.className = "section-head";
+    head.innerHTML = `<span class="num">${roman}</span><h2>${SECTIONS[secNum]}</h2><span class="count">${secRows.length} focals</span>`;
+    main.appendChild(head);
+
+    const cards = document.createElement('div');
+    cards.className = "cards";
+    secRows.forEach(row => cards.appendChild(renderCard(row)));
+    main.appendChild(cards);
+  });
+}
+
+function renderCard(row){
+  const eff = effective(row);
+  const card = document.createElement('div');
+  card.className = `row-card s-${eff.status}`;
+  card.dataset.id = row.id;
+
+  const ownerHtml = row.owner ? `<div class="focal-owner">${escapeHtml(row.owner)}</div>` : "";
+  const unitHtml = row.unit ? ` <span class="target-unit">${escapeHtml(row.unit)}</span>` : "";
+  const groups = buildUpdateGroups(row, eff);
+  const updatesHtml = groups.map(g => `
+    <div class="update-group ${g.cls}">
+      <div class="update-group-label">${escapeHtml(g.label)}</div>
+      <ul>${g.items.map(u => `<li>${escapeHtml(u)}</li>`).join("")}</ul>
+    </div>
+  `).join("");
+  const stampHtml = eff.stampAt ? `<div class="stamp">Updated${eff.stampBy ? " by " + escapeHtml(eff.stampBy) : ""} · ${escapeHtml(eff.stampAt)}</div>` : "";
+
+  card.innerHTML = `
+    <button class="edit-toggle" title="Update this row">✎</button>
+    <div class="cell-focal"><span class="col-label">Focal</span><div class="focal-name">${escapeHtml(row.focal)}</div>${ownerHtml}</div>
+    <div class="cell-base"><span class="col-label">Base</span><div class="target-val">${escapeHtml(row.base)}${unitHtml}</div></div>
+    <div class="cell-stretch"><span class="col-label">Stretch</span><div class="target-val">${escapeHtml(row.stretch)}${unitHtml}</div></div>
+    <div class="cell-current"><span class="col-label">Current</span><div class="target-val current-display">${escapeHtml(eff.current) || "—"}</div></div>
+    <div class="updates"><span class="col-label">Updates</span>${updatesHtml}${stampHtml}</div>
+    <div class="status-pill"><span class="dot ${eff.status}"></span><span class="status-text">${STATUS_LABEL[eff.status]}</span></div>
+    <div class="edit-form">
+      <div class="full">
+        <label>Status</label>
+        <select class="f-status">
+          ${Object.entries(STATUS_LABEL).map(([k,v]) => `<option value="${k}" ${k===eff.status?"selected":""}>${v}</option>`).join("")}
+        </select>
+      </div>
+      <div class="full">
+        <label>Current value</label>
+        <input type="text" class="f-current" value="${escapeHtml(eff.current)}" placeholder="e.g. 45 (VR)">
+        <div class="stamp" style="margin-top:4px;">Isi nombor di sini — status akan automatik bertukar apabila cukup Base atau Stretch. Kosongkan untuk kekalkan status manual di atas.</div>
+      </div>
+      <div class="full">
+        <label>Month</label>
+        <select class="f-month">
+          ${MONTHS.map(m => `<option value="${m.key}" ${m.key===CURRENT_MONTH_KEY?"selected":""}>${m.label}</option>`).join("")}
+        </select>
+      </div>
+      <div class="full">
+        <label>Add update for the selected month</label>
+        <textarea class="f-updates" placeholder="One line per update — added under the month picked above"></textarea>
+      </div>
+      <div class="full">
+        <label>Your name</label>
+        <input type="text" class="f-by" placeholder="Who is making this update?" value="${escapeHtml(eff.stampBy||"")}">
+      </div>
+      <div class="full edit-actions">
+        <span class="save-note"></span>
+        <button class="btn btn-cancel" type="button">Cancel</button>
+        <button class="btn btn-save" type="button">Save update</button>
+      </div>
+    </div>
+  `;
+
+  const toggle = card.querySelector('.edit-toggle');
+  const form = card.querySelector('.edit-form');
+  const cancelBtn = card.querySelector('.btn-cancel');
+  const saveBtn = card.querySelector('.btn-save');
+  const note = card.querySelector('.save-note');
+
+  toggle.addEventListener('click', () => form.classList.toggle('open'));
+  cancelBtn.addEventListener('click', () => form.classList.remove('open'));
+
+  saveBtn.addEventListener('click', async () => {
+    const manualStatus = card.querySelector('.f-status').value;
+    const current = card.querySelector('.f-current').value.trim();
+    const monthKey = card.querySelector('.f-month').value;
+    const newLines = card.querySelector('.f-updates').value.split("\\n").map(s=>s.trim()).filter(Boolean);
+    const by = card.querySelector('.f-by').value.trim();
+    const at = new Date().toLocaleString('en-MY', {dateStyle:'medium', timeStyle:'short'});
+
+    const status = autoStatusFor(row, current, manualStatus);
+    const existingMonthly = overrides[row.id]?.monthlyUpdates || {};
+    const mergedMonthly = {...existingMonthly};
+    if(newLines.length){
+      mergedMonthly[monthKey] = [...(mergedMonthly[monthKey] || []), ...newLines];
+    }
+
+    const payload = {current, status, monthlyUpdates: mergedMonthly, by, at};
+
+    if(!db){
+      note.textContent = "Firebase not configured — see comments at top of script";
+      return;
+    }
+
+    saveBtn.disabled = true;
+    note.textContent = "Saving…";
+    try{
+      await setDoc(doc(db, ROWS_COLLECTION, row.id), payload);
+      note.textContent = "Saved";
+      saveBtn.disabled = false;
+      // overrides[row.id] and refreshUI() are handled automatically by the
+      // realtime onSnapshot listener once Firestore confirms the write.
+    }catch(err){
+      console.error(err);
+      note.textContent = "Save failed — try again";
+      saveBtn.disabled = false;
+    }
+  });
+
+  return card;
+}
+
+// ---------- Year-end milestones (extracted from the tracker's own updates) ----------
+const TODAY = new Date(2026, 6, 26); // 26 July 2026 — matches this tracker's "as of" date
+const YEAR_END = new Date(2026, 11, 31);
+
+const MILESTONES = [
+  {date: new Date(2026,7,5),  label: "Training & Capabilities — first session", sub: "Kicks off the bi-weekly training/KPI update cadence"},
+  {date: new Date(2026,7,29), label: "Contract expiring — Ansys", sub: "Contract renewal due"},
+  {date: new Date(2026,8,5),  label: "Contract expiring — MATLAB", sub: "Contract renewal due"},
+  {date: new Date(2026,9,1),  label: "Internal Engagement — Assembly #2 / Life at DPM #2", sub: "Target window: H2 2026"},
+  {date: new Date(2026,10,24),label: "Contracts expiring — Ansys License renewal & eXsilentia", sub: "Two renewals land on the same date"},
+  {date: new Date(2026,11,31),label: "Contracts expiring — Palisade, GPROMS", sub: "Falls on year-end checkpoint itself"},
+];
+
+function fmtDate(d){
+  return d.toLocaleDateString('en-MY', {day:'2-digit', month:'short', year:'numeric'});
+}
+
+function computeStatusCounts(rows){
+  const counts = {ontrack:0, progress:0, blocked:0, notstarted:0, metbase:0, metstretch:0};
+  rows.forEach(r => counts[effective(r).status]++);
+  return counts;
+}
+
+function renderKPIs(){
+  const counts = computeStatusCounts(ROWS);
+  const total = ROWS.length;
+  const items = [
+    {label:"Total Focals", val: total, color:"var(--navy)"},
+    {label:"Met Stretch", val: counts.metstretch, color:"var(--s-metstretch)"},
+    {label:"Met Base", val: counts.metbase, color:"var(--s-metbase)"},
+    {label:"On Track", val: counts.ontrack, color:"var(--s-ontrack)"},
+    {label:"In Progress", val: counts.progress, color:"var(--s-progress)"},
+    {label:"Blocked", val: counts.blocked, color:"var(--s-blocked)"},
+    {label:"Not Started", val: counts.notstarted, color:"var(--s-notstarted)"},
+  ];
+  document.getElementById('kpi-row').innerHTML = items.map(it => `
+    <div class="kpi-card">
+      <div class="kpi-dot" style="background:${it.color}"></div>
+      <div class="kpi-val">${it.val}</div>
+      <div class="kpi-label">${it.label}</div>
+    </div>
+  `).join("");
+}
+
+function renderSectionBars(){
+  const wrap = document.getElementById('section-bars');
+  wrap.innerHTML = "";
+  [1,2,3].forEach(sec => {
+    const rows = ROWS.filter(r => r.section === sec);
+    const counts = computeStatusCounts(rows);
+    const total = rows.length;
+    const segHtml = Object.entries(counts).filter(([,v]) => v > 0).map(([k,v]) =>
+      `<div class="seg" style="width:${(v/total*100).toFixed(1)}%; background:${STATUS_COLOR[k]}" title="${STATUS_LABEL[k]}: ${v}"></div>`
+    ).join("");
+    const row = document.createElement('div');
+    row.className = "section-bar-row";
+    row.innerHTML = `
+      <div class="section-bar-label">${SECTIONS[sec]}</div>
+      <div class="section-bar-track">${segHtml}</div>
+      <div class="section-bar-count">${total} focals</div>
+    `;
+    wrap.appendChild(row);
+  });
+}
+
+function renderTimeline(){
+  const list = document.getElementById('timeline');
+  const items = [];
+  items.push({date: TODAY, label: "Today — tracker checkpoint", sub: "Current snapshot of all focals", cls: "today"});
+  MILESTONES.forEach(m => items.push({date: m.date, label: m.label, sub: m.sub, cls: ""}));
+  items.push({date: YEAR_END, label: "Year-End Target — 31 December 2026", sub: "All focals expected to be assessed against Base / Stretch", cls: "yearend"});
+  items.sort((a,b) => a.date - b.date);
+
+  list.innerHTML = items.map(it => `
+    <div class="timeline-item ${it.cls}">
+      <div class="timeline-date">${fmtDate(it.date)}</div>
+      <div class="timeline-label">${escapeHtml(it.label)}</div>
+      <div class="timeline-sub">${escapeHtml(it.sub)}</div>
+    </div>
+  `).join("");
+}
+
+function renderProjection(){
+  const counts = computeStatusCounts(ROWS);
+  const total = ROWS.length;
+  const achieved = counts.metbase + counts.metstretch;
+  const atRisk = counts.blocked + counts.notstarted;
+  const msPerDay = 1000*60*60*24;
+  const daysLeft = Math.max(0, Math.round((YEAR_END - TODAY) / msPerDay));
+  const pctAchieved = total ? Math.round((achieved/total)*100) : 0;
+  const pctStretch = total ? Math.round((counts.metstretch/total)*100) : 0;
+
+  const box = document.getElementById('projection-box');
+  box.innerHTML = `
+    <div class="projection-stats">
+      <div class="projection-stat"><div class="n">${daysLeft}</div><div class="l">Days to Year-End</div></div>
+      <div class="projection-stat"><div class="n">${pctAchieved}%</div><div class="l">Focals at Base or above</div></div>
+      <div class="projection-stat"><div class="n">${pctStretch}%</div><div class="l">Focals at Stretch</div></div>
+      <div class="projection-stat"><div class="n">${atRisk}</div><div class="l">Blocked / Not Started</div></div>
+    </div>
+    <p>As of today, <strong>${achieved} of ${total} focals (${pctAchieved}%)</strong> have already met at least their Base target, and <strong>${counts.metstretch}</strong> have reached Stretch. With <strong>${daysLeft} days</strong> remaining to 31 December 2026, the department is on a path to close the year with most value-creation and deployment focals cleared — provided the AI and PPM value-realization approvals move forward.</p>
+    <p><strong>${atRisk} focal${atRisk===1?"":"s"}</strong> are currently Blocked or Not Started and carry the highest year-end risk, particularly the AI completion track (pending AA approval) and the operations items with no activity planned yet. These are the items most likely to still be open at year-end unless action is taken in Q3.</p>
+    <p>Key fixed dates between now and year-end — contract renewals in late Aug, early Sep and 24 Nov, plus the Palisade/GPROMS renewals landing exactly on the 31 Dec checkpoint — should be treated as hard deadlines rather than soft targets.</p>
+  `;
+}
+
+function refreshUI(){
+  renderAll();
+  renderKPIs();
+  renderSectionBars();
+  renderTimeline();
+  renderProjection();
+}
+
+function startRealtimeSync(){
+  if(!db){
+    const loadNote = document.getElementById('load-note');
+    if(loadNote) loadNote.textContent = "⚠️ Firebase not configured — paste your firebaseConfig at the top of the <script> tag to enable live sync.";
+    return;
+  }
+  onSnapshot(collection(db, ROWS_COLLECTION), (snapshot) => {
+    snapshot.docChanges().forEach(change => {
+      if(change.type === "removed"){
+        delete overrides[change.doc.id];
+      }else{
+        overrides[change.doc.id] = change.doc.data();
+      }
+    });
+    const loadNote = document.getElementById('load-note');
+    if(loadNote) loadNote.remove();
+    refreshUI();
+  }, (err) => {
+    console.error("Firebase realtime sync error:", err);
+    const loadNote = document.getElementById('load-note');
+    if(loadNote) loadNote.textContent = "⚠️ Could not connect to Firebase — check your config and Firestore security rules.";
+  });
+}
+
+(function init(){
+  refreshUI(); // paint immediately with baseline data while we connect
+  startRealtimeSync(); // then keep everyone's view in sync in real time
+
+  document.getElementById('search').addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    document.querySelectorAll('.row-card').forEach(card => {
+      const text = card.innerText.toLowerCase();
+      card.classList.toggle('hidden', q.length > 0 && !text.includes(q));
+    });
+  });
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(`page-${btn.dataset.page}`).classList.add('active');
+    });
+  });
+})();
+</script>
+
+</body>
+</html>
