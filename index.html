@@ -55,9 +55,30 @@
     background:rgba(255,255,255,0.06);
     border:1px solid rgba(255,255,255,0.14);
     border-radius:10px; padding:10px 16px; min-width:150px;
+    position:relative;
   }
   .meta-chip .label{font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:#9FADC6;}
   .meta-chip .val{font-size:17px; font-weight:700; color:#fff; margin-top:2px;}
+  .chip-edit{
+    position:absolute; top:8px; right:8px; width:20px; height:20px; border-radius:5px;
+    border:1px solid rgba(255,255,255,0.25); background:rgba(255,255,255,0.08);
+    color:#D9E0EE; font-size:10.5px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .chip-edit:hover{background:rgba(255,255,255,0.18);}
+  .chip-edit-form{display:none; margin-top:10px; padding-top:10px; border-top:1px dashed rgba(255,255,255,0.18);}
+  .chip-edit-form.open{display:block;}
+  .chip-edit-form input{
+    width:100%; padding:6px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.25);
+    background:rgba(255,255,255,0.08); color:#fff; font-size:12.5px; outline:none;
+  }
+  .chip-edit-form input::placeholder{color:#9FADC6;}
+  .chip-edit-actions{display:flex; gap:6px; justify-content:flex-end; margin-top:8px;}
+  .chip-edit-actions button{
+    padding:5px 11px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; border:1px solid transparent;
+  }
+  .chip-save{background:var(--gold); color:#12213E;}
+  .chip-cancel{background:transparent; border-color:rgba(255,255,255,0.25); color:#D9E0EE;}
+  .chip-note{font-size:10px; color:#9FADC6; margin-top:6px;}
 
   .legend-bar{
     display:flex; gap:18px; flex-wrap:wrap; align-items:center;
@@ -253,10 +274,22 @@
   <h1>OKR 1 — Continuous Value Creation</h1>
   <p class="sub">Live status of value-creation focals and departmental operations · editable by each person-in-charge</p>
   <div class="top-meta">
-    <div class="meta-chip"><div class="label">Budget FY2025</div><div class="val">MYR 6.8 Mil</div></div>
-    <div class="meta-chip"><div class="label">Value Realized</div><div class="val">21 Mil</div></div>
-    <div class="meta-chip"><div class="label">Value Identified</div><div class="val">66 Mil</div></div>
-    <div class="meta-chip"><div class="label">Projects Deployed</div><div class="val">21 / 40</div></div>
+    <div class="meta-chip" id="chip-budget">
+      <button class="chip-edit" type="button" title="Update budget">✎</button>
+      <div class="label">Budget FY2025</div>
+      <div class="val" id="val-budget">MYR 6.8 Mil</div>
+      <div class="chip-edit-form" id="budget-edit-form">
+        <input type="text" id="budget-input" placeholder="e.g. 6.8">
+        <div class="chip-note">Value in MYR Mil — synced live via Firebase</div>
+        <div class="chip-edit-actions">
+          <button class="chip-cancel" type="button" id="budget-cancel">Cancel</button>
+          <button class="chip-save" type="button" id="budget-save">Save</button>
+        </div>
+      </div>
+    </div>
+    <div class="meta-chip"><div class="label">Value Realized</div><div class="val" id="val-realized">—</div></div>
+    <div class="meta-chip"><div class="label">Value Identified</div><div class="val" id="val-identified">—</div></div>
+    <div class="meta-chip"><div class="label">Projects Deployed</div><div class="val" id="val-deployed">—</div></div>
   </div>
 </div>
 
@@ -315,6 +348,9 @@
             match /okr1_updates/{docId} {
               allow read, write: if true;
             }
+            match /okr1_meta/{docId} {
+              allow read, write: if true;
+            }
           }
         }
       (This has NO access control — anyone with the file can edit any row.
@@ -337,7 +373,9 @@ const firebaseConfig = {
 };
 
 const ROWS_COLLECTION = "okr1_updates";
+const META_COLLECTION = "okr1_meta";
 let db = null;
+let budgetOverride = null; // {allocated, by, at} synced from Firebase
 try{
   const fbApp = initializeApp(firebaseConfig);
   db = getFirestore(fbApp);
@@ -382,6 +420,61 @@ function autoStatusFor(row, currentStr, fallbackStatus){
   if(stretchNum !== null && curNum >= stretchNum) return "metstretch";
   if(baseNum !== null && curNum >= baseNum) return "metbase";
   return fallbackStatus;
+}
+
+function extractMil(str){
+  if(!str) return null;
+  const m = String(str).match(/([\d.]+)\s*Mil/i);
+  return m ? parseFloat(m[1]) : null;
+}
+
+function extractProjectCount(str){
+  if(!str) return null;
+  const m = String(str).match(/(\d+)\s*project/i);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+function computeHeaderMetrics(){
+  const techRow = ROWS.find(r => r.id === 'vc-tech-robotics');
+  const ppmRow = ROWS.find(r => r.id === 'vc-ppm');
+  const techEff = effective(techRow);
+  const ppmEff = effective(ppmRow);
+
+  const techCur = parseNumeric(techEff.current);
+  const realized = techCur !== null ? `${techEff.current} MYR Mil` :
+    (extractMil(techRow.updates[0]) !== null ? `${extractMil(techRow.updates[0])} Mil` : "—");
+
+  const ppmCur = parseNumeric(ppmEff.current);
+  const identified = ppmCur !== null ? `${ppmEff.current} MYR Mil` :
+    (extractMil(ppmRow.updates[0]) !== null ? `${extractMil(ppmRow.updates[0])} Mil` : "—");
+
+  const depRows = ROWS.filter(r => r.section === 2);
+  let deployedSum = 0, targetSum = 0;
+  depRows.forEach(r => {
+    const eff = effective(r);
+    const cur = parseNumeric(eff.current);
+    if(cur !== null){
+      deployedSum += cur;
+    }else{
+      const fallback = extractProjectCount(r.updates[0]);
+      if(fallback !== null) deployedSum += fallback;
+    }
+    const tgt = parseNumeric(r.stretch);
+    if(tgt !== null) targetSum += tgt;
+  });
+
+  const budget = budgetOverride && budgetOverride.allocated ? `MYR ${budgetOverride.allocated} Mil` : "MYR 6.8 Mil";
+
+  return {budget, realized, identified, deployed: `${deployedSum} / ${targetSum}`};
+}
+
+function renderHeaderMetrics(){
+  const m = computeHeaderMetrics();
+  const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+  setVal('val-budget', m.budget);
+  setVal('val-realized', m.realized);
+  setVal('val-identified', m.identified);
+  setVal('val-deployed', m.deployed);
 }
 
 function effective(row){
@@ -645,6 +738,7 @@ function renderProjection(){
 
 function refreshUI(){
   renderAll();
+  renderHeaderMetrics();
   renderKPIs();
   renderSectionBars();
   renderTimeline();
@@ -673,11 +767,56 @@ function startRealtimeSync(){
     const loadNote = document.getElementById('load-note');
     if(loadNote) loadNote.textContent = "⚠️ Could not connect to Firebase — check your config and Firestore security rules.";
   });
+
+  onSnapshot(doc(db, META_COLLECTION, "budget"), (snap) => {
+    budgetOverride = snap.exists() ? snap.data() : null;
+    renderHeaderMetrics();
+  }, (err) => {
+    console.error("Firebase budget sync error — make sure your Firestore rules also allow the 'okr1_meta' collection.", err);
+  });
+}
+
+function setupBudgetChip(){
+  const chip = document.getElementById('chip-budget');
+  const editBtn = chip.querySelector('.chip-edit');
+  const form = document.getElementById('budget-edit-form');
+  const input = document.getElementById('budget-input');
+  const saveBtn = document.getElementById('budget-save');
+  const cancelBtn = document.getElementById('budget-cancel');
+
+  editBtn.addEventListener('click', () => {
+    input.value = budgetOverride?.allocated ?? "";
+    form.classList.toggle('open');
+  });
+  cancelBtn.addEventListener('click', () => form.classList.remove('open'));
+
+  saveBtn.addEventListener('click', async () => {
+    const val = input.value.trim();
+    if(!val) return;
+    if(!db){ alert("Firebase not configured yet."); return; }
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Saving…";
+    try{
+      await setDoc(doc(db, META_COLLECTION, "budget"), {
+        allocated: val,
+        by: "",
+        at: new Date().toLocaleString('en-MY', {dateStyle:'medium', timeStyle:'short'})
+      });
+      form.classList.remove('open');
+    }catch(err){
+      console.error(err);
+      alert("Could not save — check Firestore rules allow the 'okr1_meta' collection.");
+    }finally{
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Save";
+    }
+  });
 }
 
 (function init(){
   refreshUI(); // paint immediately with baseline data while we connect
   startRealtimeSync(); // then keep everyone's view in sync in real time
+  setupBudgetChip();
 
   document.getElementById('search').addEventListener('input', (e) => {
     const q = e.target.value.trim().toLowerCase();
