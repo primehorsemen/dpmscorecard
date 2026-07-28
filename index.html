@@ -875,30 +875,37 @@ async function exportToPDF(){
     // shift or resize one page relative to the other.
     const fixedWidth = document.documentElement.clientWidth;
 
-    // Fixed page width; height follows each captured page's own aspect ratio,
-    // so the whole tab always fits on exactly one page — no per-section splitting.
+    // Fixed page width; both pages will share the SAME physical page height
+    // too (computed below), so a PDF viewer can't auto-zoom one page more
+    // than the other — that mismatched auto-zoom is what made sizes look
+    // inconsistent even though the underlying images were captured correctly.
     const PAGE_W_MM = 300;
     let pdf = null;
 
-    const addTabAsPage = async (pageName, isFirst) => {
+    const captureTab = async (pageName) => {
       switchToTab(pageName);
       await wait(200); // let layout/fonts settle before capturing
       btn.innerHTML = `<span class="ico">⏳</span> Capturing ${pageName === 'dashboard' ? 'Dashboard' : 'Summary'}…`;
       const canvas = await captureElement_(document.body, fixedWidth);
-      const imgData = canvas.toDataURL('image/png');
-      const pageHmm = PAGE_W_MM * (canvas.height / canvas.width);
-
-      if(isFirst){
-        pdf = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: [PAGE_W_MM, pageHmm] });
-      }else{
-        pdf.addPage([PAGE_W_MM, pageHmm], 'portrait');
-      }
-      pdf.addImage(imgData, 'PNG', 0, 0, PAGE_W_MM, pageHmm);
+      return {
+        imgData: canvas.toDataURL('image/png'),
+        heightMm: PAGE_W_MM * (canvas.height / canvas.width)
+      };
     };
 
-    // Page 1: whole Dashboard tab. Page 2: whole Summary & Year-End Projection tab.
-    await addTabAsPage('dashboard', true);
-    await addTabAsPage('summary', false);
+    // Capture both tabs first so we know both content heights up front.
+    const dashboardCapture = await captureTab('dashboard');
+    const summaryCapture = await captureTab('summary');
+
+    // Both PDF pages get this same physical height — the shorter capture is
+    // simply top-aligned on its page with white space below, never stretched.
+    const PAGE_H_MM = Math.max(dashboardCapture.heightMm, summaryCapture.heightMm);
+
+    pdf = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: [PAGE_W_MM, PAGE_H_MM] });
+    pdf.addImage(dashboardCapture.imgData, 'PNG', 0, 0, PAGE_W_MM, dashboardCapture.heightMm);
+
+    pdf.addPage([PAGE_W_MM, PAGE_H_MM], 'portrait');
+    pdf.addImage(summaryCapture.imgData, 'PNG', 0, 0, PAGE_W_MM, summaryCapture.heightMm);
 
     switchToTab(originalTabPage);
     document.body.classList.remove('exporting');
