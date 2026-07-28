@@ -340,23 +340,32 @@
 
 <section id="page-summary" class="page">
   <main>
-    <div class="section-head"><span class="num">IV.</span><h2>Overview</h2></div>
-    <div class="kpi-row" id="kpi-row"></div>
+    <div class="section-block" id="block-overview">
+      <div class="section-head"><span class="num">IV.</span><h2>Overview</h2></div>
+      <div class="kpi-row" id="kpi-row"></div>
+    </div>
 
-    <div class="section-head"><span class="num">V.</span><h2>Status Distribution by Section</h2></div>
-    <div id="section-bars"></div>
+    <div class="section-block" id="block-distribution">
+      <div class="section-head"><span class="num">V.</span><h2>Status Distribution by Section</h2></div>
+      <div id="section-bars"></div>
+    </div>
 
-    <div class="section-head"><span class="num">VI.</span><h2>Timeline to Year-End 2026</h2></div>
-    <div class="timeline-wrap"><div class="timeline-list" id="timeline"></div></div>
+    <div class="section-block" id="block-timeline">
+      <div class="section-head"><span class="num">VI.</span><h2>Timeline to Year-End 2026</h2></div>
+      <div class="timeline-wrap"><div class="timeline-list" id="timeline"></div></div>
+    </div>
 
-    <div class="section-head"><span class="num">VII.</span><h2>Year-End Projection</h2></div>
-    <div class="projection-box" id="projection-box"></div>
+    <div class="section-block" id="block-projection">
+      <div class="section-head"><span class="num">VII.</span><h2>Year-End Projection</h2></div>
+      <div class="projection-box" id="projection-box"></div>
+    </div>
   </main>
 </section>
 
 <footer>Rebuilt from department OKR tracker screenshots · click the pencil on any row to update it — changes sync to everyone via Firebase in real time. Requires a valid firebaseConfig (see the script comment near the top of the file).</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script type="module">
 /* ============================================================
    FIREBASE SETUP — fill this in before the dashboard will save/sync
@@ -537,15 +546,22 @@ function renderAll(){
     const secRows = ROWS.filter(r => r.section === secNum);
     if(!secRows.length) return;
     const roman = secNum === 1 ? "I." : secNum === 2 ? "II." : "III.";
+
+    const block = document.createElement('div');
+    block.className = "section-block";
+    block.id = `block-section-${secNum}`;
+
     const head = document.createElement('div');
     head.className = "section-head";
     head.innerHTML = `<span class="num">${roman}</span><h2>${SECTIONS[secNum]}</h2><span class="count">${secRows.length} focals</span>`;
-    main.appendChild(head);
+    block.appendChild(head);
 
     const cards = document.createElement('div');
     cards.className = "cards";
     secRows.forEach(row => cards.appendChild(renderCard(row)));
-    main.appendChild(cards);
+    block.appendChild(cards);
+
+    main.appendChild(block);
   });
 }
 
@@ -808,166 +824,107 @@ const STATUS_HEX = {
 };
 const NAVY_HEX = "12213E", NAVY2_HEX = "1E3A66", GOLD_HEX = "C9A24B";
 
+async function captureElement_(el){
+  if(!el) return null;
+  return await window.html2canvas(el, {
+    backgroundColor: "#ffffff",
+    scale: 2,
+    useCORS: true,
+    logging: false
+  });
+}
+
+// Slices a tall canvas into slide-sized pages and adds one image slide per page.
+function addCanvasAsSlides_(pptx, canvas, marginX, marginTop, contentW, maxContentH){
+  const pxPerInch = canvas.width / contentW;
+  const sliceHeightPx = Math.floor(maxContentH * pxPerInch);
+  const totalPages = Math.max(1, Math.ceil(canvas.height / sliceHeightPx));
+
+  for(let page = 0; page < totalPages; page++){
+    const startY = page * sliceHeightPx;
+    const thisSliceHeightPx = Math.min(sliceHeightPx, canvas.height - startY);
+    if(thisSliceHeightPx <= 0) break;
+
+    const sliceCanvas = document.createElement('canvas');
+    sliceCanvas.width = canvas.width;
+    sliceCanvas.height = thisSliceHeightPx;
+    const ctx = sliceCanvas.getContext('2d');
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+    ctx.drawImage(canvas, 0, startY, canvas.width, thisSliceHeightPx, 0, 0, canvas.width, thisSliceHeightPx);
+
+    const dataUrl = sliceCanvas.toDataURL('image/png');
+    const imgH = thisSliceHeightPx / pxPerInch;
+
+    const s = pptx.addSlide();
+    s.addImage({ data: dataUrl, x: marginX, y: marginTop, w: contentW, h: imgH });
+  }
+}
+
 async function exportToPPTX(){
   const btn = document.getElementById('export-pptx-btn');
   const originalHtml = btn.innerHTML;
   btn.disabled = true;
-  btn.innerHTML = '<span class="ico">⏳</span> Generating…';
+  btn.innerHTML = '<span class="ico">⏳</span> Capturing dashboard…';
+
+  const activeTabBtn = document.querySelector('.tab-btn.active');
+  const originalTabPage = activeTabBtn ? activeTabBtn.dataset.page : 'dashboard';
+
+  const switchToTab = (pageName) => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.page === pageName));
+    document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === `page-${pageName}`));
+  };
+  const wait = (ms) => new Promise(res => setTimeout(res, ms));
 
   try{
     if(!window.PptxGenJS){ throw new Error("PptxGenJS library did not load"); }
+    if(!window.html2canvas){ throw new Error("html2canvas library did not load"); }
+
     const pptx = new window.PptxGenJS();
     pptx.defineLayout({ name: "WIDE", width: 13.33, height: 7.5 });
     pptx.layout = "WIDE";
 
-    // Pastel header colors matching the source OKR tracker screenshots
-    const HEAD_GREEN = "E2EFDA";   // Focal
-    const HEAD_BLUE  = "DDEBF7";   // Unit / Updates
-    const HEAD_WHITE = "F2F2F2";   // Base / Stretch
-    const HEAD_PURPLE = "E4DFEC";  // Current
-    const ROW_ALT = "FAFAFA";
+    const MARGIN_X = 0.4, MARGIN_TOP = 0.35, CONTENT_W = 12.53, MAX_CONTENT_H = 6.8;
 
-    const counts = computeStatusCounts(ROWS);
-    const total = ROWS.length;
-
-    // --- Slide 1: Title ---
-    let slide = pptx.addSlide();
+    // --- Slide 1: Title (text-based, not a screenshot) ---
+    const slide = pptx.addSlide();
     slide.background = { color: NAVY_HEX };
     slide.addText("GPE · DEPARTMENT OKR TRACKER", { x:0.6, y:2.05, w:10, h:0.4, fontSize:12, bold:true, color:GOLD_HEX, charSpacing:2 });
     slide.addText("OKR 1 — Continuous Value Creation", { x:0.6, y:2.5, w:12, h:1, fontSize:34, bold:true, color:"FFFFFF" });
     const genDate = new Date().toLocaleDateString('en-MY', { day:'2-digit', month:'long', year:'numeric' });
-    slide.addText(`Generated ${genDate} · Live export from DPM Scorecard Dashboard`, { x:0.6, y:3.55, w:10, h:0.4, fontSize:12, color:"B9C3D6" });
+    slide.addText(`Generated ${genDate} · Live snapshot from DPM Scorecard Dashboard`, { x:0.6, y:3.55, w:10, h:0.4, fontSize:12, color:"B9C3D6" });
 
-    // --- Slides 2-4: Dashboard tab — one spreadsheet-style table per section ---
-    [1, 2, 3].forEach(secNum => {
-      const secRows = ROWS.filter(r => r.section === secNum);
-      const s = pptx.addSlide();
+    // --- Dashboard tab: screenshot each section block (I, II, III) ---
+    switchToTab('dashboard');
+    await wait(150); // let layout settle before capturing
+    const dashboardBlocks = document.querySelectorAll('#page-dashboard .section-block');
+    for(const block of dashboardBlocks){
+      btn.innerHTML = '<span class="ico">⏳</span> Capturing Dashboard…';
+      const canvas = await captureElement_(block);
+      addCanvasAsSlides_(pptx, canvas, MARGIN_X, MARGIN_TOP, CONTENT_W, MAX_CONTENT_H);
+    }
 
-      s.addText(`OKR 1: Continuous Value Creation — ${SECTIONS[secNum]}`, {
-        x:0.4, y:0.3, w:12.5, h:0.5, fontSize:16, bold:true, color:NAVY_HEX,
-        fill:{ color: HEAD_GREEN }, align:"left", valign:"middle", margin:8
-      });
+    // --- Summary tab: screenshot each block (Overview, Distribution, Timeline, Projection) ---
+    switchToTab('summary');
+    await wait(150);
+    const summaryBlockIds = ['block-overview', 'block-distribution', 'block-timeline', 'block-projection'];
+    for(const id of summaryBlockIds){
+      btn.innerHTML = '<span class="ico">⏳</span> Capturing Summary…';
+      const el = document.getElementById(id);
+      const canvas = await captureElement_(el);
+      addCanvasAsSlides_(pptx, canvas, MARGIN_X, MARGIN_TOP, CONTENT_W, MAX_CONTENT_H);
+    }
 
-      const header = [
-        { text:"Focal", options:{ bold:true, fill:{color:HEAD_GREEN}, color:NAVY_HEX, fontSize:10 } },
-        { text:"Base", options:{ bold:true, fill:{color:HEAD_WHITE}, color:NAVY_HEX, fontSize:10 } },
-        { text:"Stretch", options:{ bold:true, fill:{color:HEAD_WHITE}, color:NAVY_HEX, fontSize:10 } },
-        { text:"Current", options:{ bold:true, fill:{color:HEAD_PURPLE}, color:NAVY_HEX, fontSize:10 } },
-        { text:"Status", options:{ bold:true, fill:{color:"FFFFFF"}, color:NAVY_HEX, fontSize:10 } },
-        { text:"Updates", options:{ bold:true, fill:{color:HEAD_BLUE}, color:NAVY_HEX, fontSize:10 } }
-      ];
-      const rows = secRows.map((row, i) => {
-        const eff = effective(row);
-        const groups = buildUpdateGroups(row, eff);
-        const lastGroup = groups[groups.length - 1];
-        const latest = lastGroup ? lastGroup.items[lastGroup.items.length - 1] : "";
-        const bg = i % 2 === 0 ? "FFFFFF" : ROW_ALT;
-        return [
-          { text: row.owner ? `${row.focal} (${row.owner})` : row.focal, options:{ fontSize:9.5, fill:{color:bg} } },
-          { text: eff.base, options:{ fontSize:9.5, fill:{color:bg}, align:"center" } },
-          { text: eff.stretch, options:{ fontSize:9.5, fill:{color:bg}, align:"center" } },
-          { text: eff.current || "—", options:{ fontSize:9.5, fill:{color:bg}, align:"center" } },
-          { text: "●  " + STATUS_LABEL[eff.status], options:{ fontSize:9.5, fill:{color:bg}, color: STATUS_HEX[eff.status], bold:true } },
-          { text: latest || "", options:{ fontSize:8.5, fill:{color:bg} } }
-        ];
-      });
-      s.addTable([header, ...rows], {
-        x:0.4, y:1.0, w:12.5, colW:[2.6,1.2,1.2,1.2,1.6,4.7],
-        border:{ type:"solid", color:"D9D9D9", pt:0.5 }, autoPage:true
-      });
-    });
+    // Restore whichever tab the person was originally viewing
+    switchToTab(originalTabPage);
 
-    // --- Slide 5: IV. Overview ---
-    const metrics = computeHeaderMetrics();
-    slide = pptx.addSlide();
-    slide.addText("IV.  Overview", { x:0.5, y:0.35, w:8, h:0.55, fontSize:22, bold:true, color:NAVY_HEX });
-    const kpis = [
-      { label:"Budget FY2025", val: metrics.budget },
-      { label:"Value Realized", val: metrics.realized },
-      { label:"Value Identified", val: metrics.identified },
-      { label:"Projects Deployed", val: metrics.deployed }
-    ];
-    kpis.forEach((k, i) => {
-      const x = 0.5 + i * 3.1;
-      slide.addText(
-        [
-          { text: k.label.toUpperCase() + "\n", options: { fontSize: 9, color: "98A2B3", bold: true } },
-          { text: k.val, options: { fontSize: 18, bold: true, color: NAVY_HEX, breakLine: true } }
-        ],
-        { x, y: 1.15, w: 2.85, h: 1.3, fill: { color: "F5F6F8" }, line: { color: "E3E6EC", width: 1 }, margin: 10, valign: "top" }
-      );
-    });
-    slide.addText("Status counts across all focals", { x:0.5, y:2.75, w:8, h:0.4, fontSize:14, bold:true, color:NAVY_HEX });
-    const statusTable = [[
-      { text:"Status", options:{ bold:true, fill:{color:NAVY_HEX}, color:"FFFFFF", fontSize:10 } },
-      { text:"Count", options:{ bold:true, fill:{color:NAVY_HEX}, color:"FFFFFF", fontSize:10, align:"center" } }
-    ]].concat(Object.entries(STATUS_LABEL).map(([k, label]) => [
-      { text: label, options: { fontSize: 10 } },
-      { text: String(counts[k] || 0), options: { fontSize: 10, align: "center" } }
-    ]));
-    slide.addTable(statusTable, { x:0.5, y:3.2, w:4, colW:[3,1], border:{ type:"solid", color:"E3E6EC", pt:0.5 } });
-
-    // --- Slide 6: V. Status Distribution by Section (stacked bar per section) ---
-    slide = pptx.addSlide();
-    slide.addText("V.  Status Distribution by Section", { x:0.5, y:0.35, w:10, h:0.55, fontSize:22, bold:true, color:NAVY_HEX });
-    const barX = 2.6, barW = 8.5, barH = 0.4;
-    [1, 2, 3].forEach((secNum, idx) => {
-      const y = 1.3 + idx * 1.0;
-      const secRows = ROWS.filter(r => r.section === secNum);
-      const secCounts = computeStatusCounts(secRows);
-      const secTotal = secRows.length;
-      slide.addText(SECTIONS[secNum], { x:0.4, y:y, w:2.1, h:barH, fontSize:11, bold:true, color:NAVY_HEX, valign:"middle" });
-      let cursorX = barX;
-      Object.entries(secCounts).filter(([,v]) => v > 0).forEach(([k, v]) => {
-        const segW = (v / secTotal) * barW;
-        slide.addShape(pptx.ShapeType.rect, { x:cursorX, y:y, w:segW, h:barH, fill:{ color: STATUS_HEX[k] }, line:{ type:"none" } });
-        cursorX += segW;
-      });
-      slide.addText(`${secTotal} focals`, { x: barX + barW + 0.15, y:y, w:1.2, h:barH, fontSize:10, color:"98A2B3", valign:"middle" });
-    });
-
-    // --- Slide 7: VI. Timeline to Year-End 2026 ---
-    slide = pptx.addSlide();
-    slide.addText("VI.  Timeline to Year-End 2026", { x:0.5, y:0.35, w:10, h:0.55, fontSize:22, bold:true, color:NAVY_HEX });
-    const timelineItems = [];
-    timelineItems.push({ date: TODAY, label: "Today — tracker checkpoint", sub: "Current snapshot of all focals" });
-    MILESTONES.forEach(m => timelineItems.push({ date: m.date, label: m.label, sub: m.sub }));
-    timelineItems.push({ date: YEAR_END, label: "Year-End Target — 31 December 2026", sub: "All focals expected to be assessed against Base / Stretch" });
-    timelineItems.sort((a, b) => a.date - b.date);
-
-    let ty = 1.15;
-    timelineItems.forEach(it => {
-      slide.addText(fmtDate(it.date).toUpperCase(), { x:0.5, y:ty, w:1.7, h:0.5, fontSize:9.5, bold:true, color:GOLD_HEX });
-      slide.addText([
-        { text: it.label + "\n", options:{ fontSize:11.5, bold:true, color:NAVY_HEX, breakLine:true } },
-        { text: it.sub, options:{ fontSize:9.5, color:"98A2B3" } }
-      ], { x:2.3, y:ty, w:10.3, h:0.55, valign:"top" });
-      ty += 0.62;
-    });
-
-    // --- Slide 8: VII. Year-End Projection ---
-    const achieved = counts.metbase + counts.metstretch;
-    const atRisk = counts.blocked + counts.notstarted;
-    const pctAchieved = total ? Math.round((achieved / total) * 100) : 0;
-    const daysLeft = Math.max(0, Math.round((YEAR_END - TODAY) / (1000 * 60 * 60 * 24)));
-
-    const pSlide = pptx.addSlide();
-    pSlide.background = { color: NAVY_HEX };
-    pSlide.addText("VII.  Year-End Projection", { x:0.6, y:0.5, w:10, h:0.6, fontSize:24, bold:true, color:"FFFFFF" });
-    pSlide.addText([
-      { text: `${daysLeft} `, options:{ bold:true, fontSize:28, color:GOLD_HEX } },
-      { text: "days remaining to 31 December 2026\n\n", options:{ fontSize:14, color:"D9E0EE", breakLine:true } },
-      { text: `${achieved} of ${total} focals (${pctAchieved}%) `, options:{ bold:true, fontSize:16, color:"FFFFFF" } },
-      { text: "have already met Base or above.\n\n", options:{ fontSize:14, color:"D9E0EE", breakLine:true } },
-      { text: `${atRisk} focal(s) `, options:{ bold:true, fontSize:16, color:"FFFFFF" } },
-      { text: "are currently Blocked or Not Started and carry the highest year-end risk.", options:{ fontSize:14, color:"D9E0EE" } }
-    ], { x:0.6, y:1.5, w:11, h:3.5, valign:"top" });
-
+    btn.innerHTML = '<span class="ico">⏳</span> Saving file…';
     const fileDate = new Date().toISOString().slice(0, 10);
     await pptx.writeFile({ fileName: `OKR1-Dashboard-Report-${fileDate}.pptx` });
   }catch(err){
     console.error("PPTX export failed:", err);
     alert("Could not generate the PPTX. Check the browser console (F12) for details.");
+    switchToTab(originalTabPage);
   }finally{
     btn.disabled = false;
     btn.innerHTML = originalHtml;
