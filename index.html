@@ -321,7 +321,6 @@
     </div>
     <div class="meta-chip"><div class="label">Value Realized</div><div class="val" id="val-realized">—</div></div>
     <div class="meta-chip"><div class="label">Value Identified</div><div class="val" id="val-identified">—</div></div>
-    <div class="meta-chip"><div class="label">Projects Deployed</div><div class="val" id="val-deployed">—</div></div>
   </div>
 </div>
 
@@ -465,12 +464,6 @@ function autoStatusFor(baseStr, stretchStr, currentStr, fallbackStatus){
   return fallbackStatus;
 }
 
-function extractProjectCount(str){
-  if(!str) return null;
-  const m = String(str).match(/(\d+)\s*project/i);
-  return m ? parseInt(m[1], 10) : null;
-}
-
 function classifyVRVI_(str){
   if(!str) return null;
   if(/\(VR\)/i.test(str)) return "VR";
@@ -502,24 +495,9 @@ function computeHeaderMetrics(){
   const realized = realizedHas ? `${realizedSum} MYR Mil` : "—";
   const identified = identifiedHas ? `${identifiedSum} MYR Mil` : "—";
 
-  const depRows = ROWS.filter(r => r.section === 2);
-  let deployedSum = 0, targetSum = 0;
-  depRows.forEach(r => {
-    const eff = effective(r);
-    const cur = parseNumeric(eff.current);
-    if(cur !== null){
-      deployedSum += cur;
-    }else{
-      const fallback = extractProjectCount(r.updates[0]);
-      if(fallback !== null) deployedSum += fallback;
-    }
-    const tgt = parseNumeric(eff.stretch);
-    if(tgt !== null) targetSum += tgt;
-  });
-
   const budget = budgetOverride && budgetOverride.allocated ? `${budgetOverride.allocated} MYR Mil` : "6.8 MYR Mil";
 
-  return {budget, realized, identified, deployed: `${deployedSum} / ${targetSum}`};
+  return {budget, realized, identified};
 }
 
 function renderHeaderMetrics(){
@@ -528,7 +506,6 @@ function renderHeaderMetrics(){
   setVal('val-budget', m.budget);
   setVal('val-realized', m.realized);
   setVal('val-identified', m.identified);
-  setVal('val-deployed', m.deployed);
 }
 
 function effective(row){
