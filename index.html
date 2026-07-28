@@ -833,13 +833,18 @@ const STATUS_HEX = {
 };
 const NAVY_HEX = "12213E", NAVY2_HEX = "1E3A66", GOLD_HEX = "C9A24B";
 
-async function captureElement_(el){
+async function captureElement_(el, fixedWidth){
   if(!el) return null;
+  window.scrollTo(0, 0);
   return await window.html2canvas(el, {
     backgroundColor: "#ffffff",
     scale: 2,
     useCORS: true,
-    logging: false
+    logging: false,
+    scrollX: 0,
+    scrollY: 0,
+    windowWidth: fixedWidth,
+    width: fixedWidth
   });
 }
 
@@ -851,6 +856,7 @@ async function exportToPDF(){
 
   const activeTabBtn = document.querySelector('.tab-btn.active');
   const originalTabPage = activeTabBtn ? activeTabBtn.dataset.page : 'dashboard';
+  const originalScrollY = window.scrollY;
 
   const switchToTab = (pageName) => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.page === pageName));
@@ -864,6 +870,10 @@ async function exportToPDF(){
 
     document.body.classList.add('exporting');
     await wait(50);
+    // Lock one fixed pixel width for BOTH captures so a scrollbar appearing/
+    // disappearing between tabs (due to different content heights) can't
+    // shift or resize one page relative to the other.
+    const fixedWidth = document.documentElement.clientWidth;
 
     // Fixed page width; height follows each captured page's own aspect ratio,
     // so the whole tab always fits on exactly one page — no per-section splitting.
@@ -874,7 +884,7 @@ async function exportToPDF(){
       switchToTab(pageName);
       await wait(200); // let layout/fonts settle before capturing
       btn.innerHTML = `<span class="ico">⏳</span> Capturing ${pageName === 'dashboard' ? 'Dashboard' : 'Summary'}…`;
-      const canvas = await captureElement_(document.body);
+      const canvas = await captureElement_(document.body, fixedWidth);
       const imgData = canvas.toDataURL('image/png');
       const pageHmm = PAGE_W_MM * (canvas.height / canvas.width);
 
@@ -892,6 +902,7 @@ async function exportToPDF(){
 
     switchToTab(originalTabPage);
     document.body.classList.remove('exporting');
+    window.scrollTo(0, originalScrollY);
 
     btn.innerHTML = '<span class="ico">⏳</span> Saving file…';
     const fileDate = new Date().toISOString().slice(0, 10);
@@ -901,6 +912,7 @@ async function exportToPDF(){
     alert("Could not generate the PDF. Check the browser console (F12) for details.");
     document.body.classList.remove('exporting');
     switchToTab(originalTabPage);
+    window.scrollTo(0, originalScrollY);
   }finally{
     btn.disabled = false;
     btn.innerHTML = originalHtml;
