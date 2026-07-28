@@ -309,7 +309,7 @@
     <div class="meta-chip" id="chip-budget">
       <button class="chip-edit" type="button" title="Update budget">✎</button>
       <div class="label">Budget FY2025</div>
-      <div class="val" id="val-budget">MYR 6.8 Mil</div>
+      <div class="val" id="val-budget">6.8 MYR Mil</div>
       <div class="chip-edit-form" id="budget-edit-form">
         <input type="text" id="budget-input" placeholder="e.g. 6.8">
         <div class="chip-note">Value in MYR Mil — synced live via Firebase</div>
@@ -465,12 +465,6 @@ function autoStatusFor(baseStr, stretchStr, currentStr, fallbackStatus){
   return fallbackStatus;
 }
 
-function extractMil(str){
-  if(!str) return null;
-  const m = String(str).match(/([\d.]+)\s*Mil/i);
-  return m ? parseFloat(m[1]) : null;
-}
-
 function extractProjectCount(str){
   if(!str) return null;
   const m = String(str).match(/(\d+)\s*project/i);
@@ -487,8 +481,9 @@ function classifyVRVI_(str){
 function computeHeaderMetrics(){
   // Any focal whose Base target is tagged (VR) contributes its Current value
   // to the total Value Realized; any tagged (VI) contributes to Value
-  // Identified. This scales automatically to however many rows carry each
-  // tag, instead of being hardcoded to specific rows.
+  // Identified. Only rows where the PIC has actually entered a Current
+  // value are counted — nothing here is guessed from baseline update text,
+  // so the total is always a trustworthy sum of real figures.
   let realizedSum = 0, realizedHas = false;
   let identifiedSum = 0, identifiedHas = false;
 
@@ -497,12 +492,8 @@ function computeHeaderMetrics(){
     const tag = classifyVRVI_(eff.base) || classifyVRVI_(row.base);
     if(!tag) return;
 
-    let val = parseNumeric(eff.current);
-    if(val === null){
-      // No Current entered yet — fall back to a Mil figure mentioned in the row's own baseline update
-      val = extractMil(row.updates[0]);
-    }
-    if(val === null) return;
+    const val = parseNumeric(eff.current);
+    if(val === null) return; // not yet reported by the PIC — excluded from the total
 
     if(tag === "VR"){ realizedSum += val; realizedHas = true; }
     else{ identifiedSum += val; identifiedHas = true; }
@@ -526,7 +517,7 @@ function computeHeaderMetrics(){
     if(tgt !== null) targetSum += tgt;
   });
 
-  const budget = budgetOverride && budgetOverride.allocated ? `MYR ${budgetOverride.allocated} Mil` : "MYR 6.8 Mil";
+  const budget = budgetOverride && budgetOverride.allocated ? `${budgetOverride.allocated} MYR Mil` : "6.8 MYR Mil";
 
   return {budget, realized, identified, deployed: `${deployedSum} / ${targetSum}`};
 }
