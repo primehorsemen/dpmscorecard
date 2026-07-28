@@ -200,15 +200,38 @@
   .page{display:none;}
   .page.active{display:block;}
 
+  .export-btn{
+    margin-left:auto; align-self:center;
+    background:var(--navy); color:#fff; border:none; border-radius:8px;
+    padding:9px 16px; font-size:12.5px; font-weight:700; cursor:pointer;
+    display:flex; align-items:center; gap:7px;
+  }
+  .export-btn:hover{background:var(--navy-2);}
+  .export-btn:disabled{opacity:.6; cursor:default;}
+  .export-btn .ico{font-size:13px;}
+
   /* ---------- KPI CARDS ---------- */
   .kpi-row{display:flex; flex-wrap:wrap; gap:12px; margin-bottom:8px;}
   .kpi-card{
     flex:1 1 130px; background:var(--card); border:1px solid var(--line); border-radius:12px;
-    padding:16px; position:relative; overflow:hidden;
+    padding:16px; position:relative;
   }
   .kpi-dot{width:9px; height:9px; border-radius:50%; margin-bottom:8px;}
   .kpi-val{font-size:26px; font-weight:800; color:var(--ink); line-height:1;}
   .kpi-label{font-size:11.5px; color:var(--ink-soft); margin-top:6px;}
+  .kpi-card.has-tip{cursor:default;}
+  .kpi-tip{
+    display:none; position:absolute; top:calc(100% + 8px); left:0; z-index:30;
+    min-width:220px; max-width:290px; background:var(--navy); color:#fff;
+    border-radius:10px; padding:12px 14px; box-shadow:0 10px 28px rgba(0,0,0,0.22);
+  }
+  .kpi-card.has-tip:hover .kpi-tip{display:block;}
+  .kpi-tip .tip-title{font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--gold); font-weight:700; margin-bottom:8px;}
+  .kpi-tip ul{margin:0; padding:0; list-style:none;}
+  .kpi-tip li{font-size:11.5px; padding:4px 0; border-top:1px solid rgba(255,255,255,0.12);}
+  .kpi-tip li:first-child{border-top:none;}
+  .kpi-tip li .owner{color:#B9C3D6; font-size:10.5px;}
+  .kpi-tip .tip-empty{font-size:11.5px; color:#B9C3D6; font-style:italic;}
 
   /* ---------- SECTION BARS ---------- */
   .section-bar-row{
@@ -306,6 +329,7 @@
 <div class="tabs">
   <button class="tab-btn active" data-page="dashboard">Dashboard</button>
   <button class="tab-btn" data-page="summary">Summary &amp; Year-End Projection</button>
+  <button class="export-btn" id="export-pptx-btn" type="button"><span class="ico">⬇</span> Export to PPTX</button>
 </div>
 
 <section id="page-dashboard" class="page active">
@@ -332,6 +356,7 @@
 
 <footer>Rebuilt from department OKR tracker screenshots · click the pencil on any row to update it — changes sync to everyone via Firebase in real time. Requires a valid firebaseConfig (see the script comment near the top of the file).</footer>
 
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <script type="module">
 /* ============================================================
    FIREBASE SETUP — fill this in before the dashboard will save/sync
@@ -412,11 +437,11 @@ function parseNumeric(str){
   return m ? parseFloat(m[0]) : null;
 }
 
-function autoStatusFor(row, currentStr, fallbackStatus){
+function autoStatusFor(baseStr, stretchStr, currentStr, fallbackStatus){
   const curNum = parseNumeric(currentStr);
   if(curNum === null) return fallbackStatus;
-  const baseNum = parseNumeric(row.base);
-  const stretchNum = parseNumeric(row.stretch);
+  const baseNum = parseNumeric(baseStr);
+  const stretchNum = parseNumeric(stretchStr);
   if(stretchNum !== null && curNum >= stretchNum) return "metstretch";
   if(baseNum !== null && curNum >= baseNum) return "metbase";
   return fallbackStatus;
@@ -459,7 +484,7 @@ function computeHeaderMetrics(){
       const fallback = extractProjectCount(r.updates[0]);
       if(fallback !== null) deployedSum += fallback;
     }
-    const tgt = parseNumeric(r.stretch);
+    const tgt = parseNumeric(eff.stretch);
     if(tgt !== null) targetSum += tgt;
   });
 
@@ -481,6 +506,8 @@ function effective(row){
   const o = overrides[row.id];
   return {
     current: o?.current ?? row.current ?? "",
+    base: o?.base ?? row.base,
+    stretch: o?.stretch ?? row.stretch,
     status: o?.status ?? row.status,
     monthlyUpdates: o?.monthlyUpdates || {},
     stampBy: o?.by || null,
@@ -542,8 +569,8 @@ function renderCard(row){
   card.innerHTML = `
     <button class="edit-toggle" title="Update this row">✎</button>
     <div class="cell-focal"><span class="col-label">Focal</span><div class="focal-name">${escapeHtml(row.focal)}</div>${ownerHtml}</div>
-    <div class="cell-base"><span class="col-label">Base</span><div class="target-val">${escapeHtml(row.base)}${unitHtml}</div></div>
-    <div class="cell-stretch"><span class="col-label">Stretch</span><div class="target-val">${escapeHtml(row.stretch)}${unitHtml}</div></div>
+    <div class="cell-base"><span class="col-label">Base</span><div class="target-val">${escapeHtml(eff.base)}${unitHtml}</div></div>
+    <div class="cell-stretch"><span class="col-label">Stretch</span><div class="target-val">${escapeHtml(eff.stretch)}${unitHtml}</div></div>
     <div class="cell-current"><span class="col-label">Current</span><div class="target-val current-display">${escapeHtml(eff.current) || "—"}</div></div>
     <div class="updates"><span class="col-label">Updates</span>${updatesHtml}${stampHtml}</div>
     <div class="status-pill"><span class="dot ${eff.status}"></span><span class="status-text">${STATUS_LABEL[eff.status]}</span></div>
@@ -553,6 +580,14 @@ function renderCard(row){
         <select class="f-status">
           ${Object.entries(STATUS_LABEL).map(([k,v]) => `<option value="${k}" ${k===eff.status?"selected":""}>${v}</option>`).join("")}
         </select>
+      </div>
+      <div class="full">
+        <label>Base target</label>
+        <input type="text" class="f-base" value="${escapeHtml(eff.base)}" placeholder="e.g. 100 (VR)">
+      </div>
+      <div class="full">
+        <label>Stretch target</label>
+        <input type="text" class="f-stretch" value="${escapeHtml(eff.stretch)}" placeholder="e.g. 150 (VR)">
       </div>
       <div class="full">
         <label>Current value</label>
@@ -592,20 +627,22 @@ function renderCard(row){
 
   saveBtn.addEventListener('click', async () => {
     const manualStatus = card.querySelector('.f-status').value;
+    const base = card.querySelector('.f-base').value.trim();
+    const stretch = card.querySelector('.f-stretch').value.trim();
     const current = card.querySelector('.f-current').value.trim();
     const monthKey = card.querySelector('.f-month').value;
     const newLines = card.querySelector('.f-updates').value.split("\\n").map(s=>s.trim()).filter(Boolean);
     const by = card.querySelector('.f-by').value.trim();
     const at = new Date().toLocaleString('en-MY', {dateStyle:'medium', timeStyle:'short'});
 
-    const status = autoStatusFor(row, current, manualStatus);
+    const status = autoStatusFor(base, stretch, current, manualStatus);
     const existingMonthly = overrides[row.id]?.monthlyUpdates || {};
     const mergedMonthly = {...existingMonthly};
     if(newLines.length){
       mergedMonthly[monthKey] = [...(mergedMonthly[monthKey] || []), ...newLines];
     }
 
-    const payload = {current, status, monthlyUpdates: mergedMonthly, by, at};
+    const payload = {base, stretch, current, status, monthlyUpdates: mergedMonthly, by, at};
 
     if(!db){
       note.textContent = "Firebase not configured — see comments at top of script";
@@ -657,21 +694,40 @@ function renderKPIs(){
   const counts = computeStatusCounts(ROWS);
   const total = ROWS.length;
   const items = [
-    {label:"Total Focals", val: total, color:"var(--navy)"},
-    {label:"Met Stretch", val: counts.metstretch, color:"var(--s-metstretch)"},
-    {label:"Met Base", val: counts.metbase, color:"var(--s-metbase)"},
-    {label:"On Track", val: counts.ontrack, color:"var(--s-ontrack)"},
-    {label:"In Progress", val: counts.progress, color:"var(--s-progress)"},
-    {label:"Blocked", val: counts.blocked, color:"var(--s-blocked)"},
-    {label:"Not Started", val: counts.notstarted, color:"var(--s-notstarted)"},
+    {label:"Total Focals", val: total, color:"var(--navy)", statusKey: null},
+    {label:"Met Stretch", val: counts.metstretch, color:"var(--s-metstretch)", statusKey: "metstretch"},
+    {label:"Met Base", val: counts.metbase, color:"var(--s-metbase)", statusKey: "metbase"},
+    {label:"On Track", val: counts.ontrack, color:"var(--s-ontrack)", statusKey: "ontrack"},
+    {label:"In Progress", val: counts.progress, color:"var(--s-progress)", statusKey: "progress"},
+    {label:"Blocked", val: counts.blocked, color:"var(--s-blocked)", statusKey: "blocked"},
+    {label:"Not Started", val: counts.notstarted, color:"var(--s-notstarted)", statusKey: "notstarted"},
   ];
-  document.getElementById('kpi-row').innerHTML = items.map(it => `
-    <div class="kpi-card">
-      <div class="kpi-dot" style="background:${it.color}"></div>
-      <div class="kpi-val">${it.val}</div>
-      <div class="kpi-label">${it.label}</div>
-    </div>
-  `).join("");
+  document.getElementById('kpi-row').innerHTML = items.map(it => {
+    if(it.statusKey === null){
+      return `
+        <div class="kpi-card">
+          <div class="kpi-dot" style="background:${it.color}"></div>
+          <div class="kpi-val">${it.val}</div>
+          <div class="kpi-label">${it.label}</div>
+        </div>
+      `;
+    }
+    const matches = ROWS.filter(r => effective(r).status === it.statusKey);
+    const listHtml = matches.length
+      ? `<ul>${matches.map(r => `<li>${escapeHtml(r.focal)}${r.owner ? ` <span class="owner">(${escapeHtml(r.owner)})</span>` : ""}</li>`).join("")}</ul>`
+      : `<div class="tip-empty">No focals in this category</div>`;
+    return `
+      <div class="kpi-card has-tip">
+        <div class="kpi-dot" style="background:${it.color}"></div>
+        <div class="kpi-val">${it.val}</div>
+        <div class="kpi-label">${it.label}</div>
+        <div class="kpi-tip">
+          <div class="tip-title">${it.label} — ${matches.length} focal${matches.length===1?"":"s"}</div>
+          ${listHtml}
+        </div>
+      </div>
+    `;
+  }).join("");
 }
 
 function renderSectionBars(){
@@ -743,6 +799,124 @@ function refreshUI(){
   renderSectionBars();
   renderTimeline();
   renderProjection();
+}
+
+// ---------- Export to PPTX ----------
+const STATUS_HEX = {
+  ontrack: "D8A94A", progress: "E28A3D", blocked: "7C2430",
+  notstarted: "C64545", metbase: "2563C7", metstretch: "00A19A"
+};
+const NAVY_HEX = "12213E", NAVY2_HEX = "1E3A66", GOLD_HEX = "C9A24B";
+
+async function exportToPPTX(){
+  const btn = document.getElementById('export-pptx-btn');
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="ico">⏳</span> Generating…';
+
+  try{
+    if(!window.PptxGenJS){ throw new Error("PptxGenJS library did not load"); }
+    const pptx = new window.PptxGenJS();
+    pptx.defineLayout({ name: "WIDE", width: 13.33, height: 7.5 });
+    pptx.layout = "WIDE";
+
+    // --- Slide 1: Title ---
+    let slide = pptx.addSlide();
+    slide.background = { color: NAVY_HEX };
+    slide.addText("GPE · DEPARTMENT OKR TRACKER", { x:0.6, y:2.05, w:10, h:0.4, fontSize:12, bold:true, color:GOLD_HEX, charSpacing:2 });
+    slide.addText("OKR 1 — Continuous Value Creation", { x:0.6, y:2.5, w:12, h:1, fontSize:34, bold:true, color:"FFFFFF" });
+    const genDate = new Date().toLocaleDateString('en-MY', { day:'2-digit', month:'long', year:'numeric' });
+    slide.addText(`Generated ${genDate} · Live export from DPM Scorecard Dashboard`, { x:0.6, y:3.55, w:10, h:0.4, fontSize:12, color:"B9C3D6" });
+
+    // --- Slide 2: Overview ---
+    const metrics = computeHeaderMetrics();
+    slide = pptx.addSlide();
+    slide.addText("Overview", { x:0.5, y:0.35, w:8, h:0.55, fontSize:22, bold:true, color:NAVY_HEX });
+    const kpis = [
+      { label:"Budget FY2025", val: metrics.budget },
+      { label:"Value Realized", val: metrics.realized },
+      { label:"Value Identified", val: metrics.identified },
+      { label:"Projects Deployed", val: metrics.deployed }
+    ];
+    kpis.forEach((k, i) => {
+      const x = 0.5 + i * 3.1;
+      slide.addText(
+        [
+          { text: k.label.toUpperCase() + "\n", options: { fontSize: 9, color: "98A2B3", bold: true } },
+          { text: k.val, options: { fontSize: 18, bold: true, color: NAVY_HEX, breakLine: true } }
+        ],
+        { x, y: 1.15, w: 2.85, h: 1.3, fill: { color: "F5F6F8" }, line: { color: "E3E6EC", width: 1 }, margin: 10, valign: "top" }
+      );
+    });
+
+    const counts = computeStatusCounts(ROWS);
+    const total = ROWS.length;
+    slide.addText("Status Distribution", { x:0.5, y:2.75, w:8, h:0.4, fontSize:14, bold:true, color:NAVY_HEX });
+    const statusTable = [[
+      { text:"Status", options:{ bold:true, fill:{color:NAVY_HEX}, color:"FFFFFF", fontSize:10 } },
+      { text:"Count", options:{ bold:true, fill:{color:NAVY_HEX}, color:"FFFFFF", fontSize:10, align:"center" } }
+    ]].concat(Object.entries(STATUS_LABEL).map(([k, label]) => [
+      { text: label, options: { fontSize: 10 } },
+      { text: String(counts[k] || 0), options: { fontSize: 10, align: "center" } }
+    ]));
+    slide.addTable(statusTable, { x:0.5, y:3.2, w:4, colW:[3,1], border:{ type:"solid", color:"E3E6EC", pt:0.5 } });
+
+    // --- Section slides (one table per section) ---
+    [1, 2, 3].forEach(secNum => {
+      const secRows = ROWS.filter(r => r.section === secNum);
+      const s = pptx.addSlide();
+      s.addText(SECTIONS[secNum], { x:0.5, y:0.35, w:10, h:0.5, fontSize:20, bold:true, color:NAVY_HEX });
+
+      const header = ["Focal", "Base", "Stretch", "Current", "Status", "Latest Update"].map(t => (
+        { text: t, options: { bold:true, fill:{color:NAVY_HEX}, color:"FFFFFF", fontSize:10 } }
+      ));
+      const rows = secRows.map(row => {
+        const eff = effective(row);
+        const groups = buildUpdateGroups(row, eff);
+        const lastGroup = groups[groups.length - 1];
+        const latest = lastGroup ? lastGroup.items[lastGroup.items.length - 1] : "";
+        return [
+          { text: row.owner ? `${row.focal} (${row.owner})` : row.focal, options:{ fontSize:9.5 } },
+          { text: eff.base, options:{ fontSize:9.5 } },
+          { text: eff.stretch, options:{ fontSize:9.5 } },
+          { text: eff.current || "—", options:{ fontSize:9.5 } },
+          { text: STATUS_LABEL[eff.status], options:{ fontSize:9.5, bold:true, color: STATUS_HEX[eff.status] } },
+          { text: latest || "", options:{ fontSize:8.5 } }
+        ];
+      });
+      s.addTable([header, ...rows], {
+        x:0.4, y:0.95, w:12.5, colW:[2.6,1.3,1.3,1.3,1.4,4.6],
+        border:{ type:"solid", color:"E3E6EC", pt:0.5 }, autoPage:true
+      });
+    });
+
+    // --- Final slide: Year-End Projection ---
+    const achieved = counts.metbase + counts.metstretch;
+    const atRisk = counts.blocked + counts.notstarted;
+    const pctAchieved = total ? Math.round((achieved / total) * 100) : 0;
+    const daysLeft = Math.max(0, Math.round((YEAR_END - TODAY) / (1000 * 60 * 60 * 24)));
+
+    const pSlide = pptx.addSlide();
+    pSlide.background = { color: NAVY_HEX };
+    pSlide.addText("Year-End Projection", { x:0.6, y:0.5, w:10, h:0.6, fontSize:24, bold:true, color:"FFFFFF" });
+    pSlide.addText([
+      { text: `${daysLeft} `, options:{ bold:true, fontSize:28, color:GOLD_HEX } },
+      { text: "days remaining to 31 December 2026\n\n", options:{ fontSize:14, color:"D9E0EE", breakLine:true } },
+      { text: `${achieved} of ${total} focals (${pctAchieved}%) `, options:{ bold:true, fontSize:16, color:"FFFFFF" } },
+      { text: "have already met Base or above.\n\n", options:{ fontSize:14, color:"D9E0EE", breakLine:true } },
+      { text: `${atRisk} focal(s) `, options:{ bold:true, fontSize:16, color:"FFFFFF" } },
+      { text: "are currently Blocked or Not Started and carry the highest year-end risk.", options:{ fontSize:14, color:"D9E0EE" } }
+    ], { x:0.6, y:1.5, w:11, h:3.5, valign:"top" });
+
+    const fileDate = new Date().toISOString().slice(0, 10);
+    await pptx.writeFile({ fileName: `OKR1-Dashboard-Report-${fileDate}.pptx` });
+  }catch(err){
+    console.error("PPTX export failed:", err);
+    alert("Could not generate the PPTX. Check the browser console (F12) for details.");
+  }finally{
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
 }
 
 function startRealtimeSync(){
@@ -817,6 +991,7 @@ function setupBudgetChip(){
   refreshUI(); // paint immediately with baseline data while we connect
   startRealtimeSync(); // then keep everyone's view in sync in real time
   setupBudgetChip();
+  document.getElementById('export-pptx-btn').addEventListener('click', exportToPPTX);
 
   document.getElementById('search').addEventListener('input', (e) => {
     const q = e.target.value.trim().toLowerCase();
