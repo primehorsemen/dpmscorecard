@@ -477,19 +477,39 @@ function extractProjectCount(str){
   return m ? parseInt(m[1], 10) : null;
 }
 
+function classifyVRVI_(str){
+  if(!str) return null;
+  if(/\(VR\)/i.test(str)) return "VR";
+  if(/\(VI\)/i.test(str)) return "VI";
+  return null;
+}
+
 function computeHeaderMetrics(){
-  const techRow = ROWS.find(r => r.id === 'vc-tech-robotics');
-  const ppmRow = ROWS.find(r => r.id === 'vc-ppm');
-  const techEff = effective(techRow);
-  const ppmEff = effective(ppmRow);
+  // Any focal whose Base target is tagged (VR) contributes its Current value
+  // to the total Value Realized; any tagged (VI) contributes to Value
+  // Identified. This scales automatically to however many rows carry each
+  // tag, instead of being hardcoded to specific rows.
+  let realizedSum = 0, realizedHas = false;
+  let identifiedSum = 0, identifiedHas = false;
 
-  const techCur = parseNumeric(techEff.current);
-  const realized = techCur !== null ? `${techEff.current} MYR Mil` :
-    (extractMil(techRow.updates[0]) !== null ? `${extractMil(techRow.updates[0])} Mil` : "—");
+  ROWS.forEach(row => {
+    const eff = effective(row);
+    const tag = classifyVRVI_(eff.base) || classifyVRVI_(row.base);
+    if(!tag) return;
 
-  const ppmCur = parseNumeric(ppmEff.current);
-  const identified = ppmCur !== null ? `${ppmEff.current} MYR Mil` :
-    (extractMil(ppmRow.updates[0]) !== null ? `${extractMil(ppmRow.updates[0])} Mil` : "—");
+    let val = parseNumeric(eff.current);
+    if(val === null){
+      // No Current entered yet — fall back to a Mil figure mentioned in the row's own baseline update
+      val = extractMil(row.updates[0]);
+    }
+    if(val === null) return;
+
+    if(tag === "VR"){ realizedSum += val; realizedHas = true; }
+    else{ identifiedSum += val; identifiedHas = true; }
+  });
+
+  const realized = realizedHas ? `${realizedSum} MYR Mil` : "—";
+  const identified = identifiedHas ? `${identifiedSum} MYR Mil` : "—";
 
   const depRows = ROWS.filter(r => r.section === 2);
   let deployedSum = 0, targetSum = 0;
