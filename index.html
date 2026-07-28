@@ -523,6 +523,7 @@ function renderHeaderMetrics(){
 function effective(row){
   const o = overrides[row.id];
   return {
+    focal: o?.focal ?? row.focal,
     current: o?.current ?? row.current ?? "",
     base: o?.base ?? row.base,
     stretch: o?.stretch ?? row.stretch,
@@ -593,13 +594,17 @@ function renderCard(row){
 
   card.innerHTML = `
     <button class="edit-toggle" title="Update this row">✎</button>
-    <div class="cell-focal"><span class="col-label">Focal</span><div class="focal-name">${escapeHtml(row.focal)}</div>${ownerHtml}</div>
+    <div class="cell-focal"><span class="col-label">Focal</span><div class="focal-name">${escapeHtml(eff.focal)}</div>${ownerHtml}</div>
     <div class="cell-base"><span class="col-label">Base</span><div class="target-val">${escapeHtml(eff.base)}${unitHtml}</div></div>
     <div class="cell-stretch"><span class="col-label">Stretch</span><div class="target-val">${escapeHtml(eff.stretch)}${unitHtml}</div></div>
     <div class="cell-current"><span class="col-label">Current</span><div class="target-val current-display">${escapeHtml(eff.current) || "—"}</div></div>
     <div class="updates"><span class="col-label">Updates</span>${updatesHtml}${stampHtml}</div>
     <div class="status-pill"><span class="dot ${eff.status}"></span><span class="status-text">${STATUS_LABEL[eff.status]}</span></div>
     <div class="edit-form">
+      <div class="full">
+        <label>Focal name</label>
+        <input type="text" class="f-focal" value="${escapeHtml(eff.focal)}" placeholder="e.g. Technologies & Robotics">
+      </div>
       <div class="full">
         <label>Status</label>
         <select class="f-status">
@@ -651,6 +656,7 @@ function renderCard(row){
   cancelBtn.addEventListener('click', () => form.classList.remove('open'));
 
   saveBtn.addEventListener('click', async () => {
+    const focal = card.querySelector('.f-focal').value.trim() || row.focal;
     const manualStatus = card.querySelector('.f-status').value;
     const base = card.querySelector('.f-base').value.trim();
     const stretch = card.querySelector('.f-stretch').value.trim();
@@ -667,7 +673,7 @@ function renderCard(row){
       mergedMonthly[monthKey] = [...(mergedMonthly[monthKey] || []), ...newLines];
     }
 
-    const payload = {base, stretch, current, status, monthlyUpdates: mergedMonthly, by, at};
+    const payload = {focal, base, stretch, current, status, monthlyUpdates: mergedMonthly, by, at};
 
     if(!db){
       note.textContent = "Firebase not configured — see comments at top of script";
@@ -739,7 +745,7 @@ function renderKPIs(){
     }
     const matches = ROWS.filter(r => effective(r).status === it.statusKey);
     const listHtml = matches.length
-      ? `<ul>${matches.map(r => `<li>${escapeHtml(r.focal)}${r.owner ? ` <span class="owner">(${escapeHtml(r.owner)})</span>` : ""}</li>`).join("")}</ul>`
+      ? `<ul>${matches.map(r => `<li>${escapeHtml(effective(r).focal)}${r.owner ? ` <span class="owner">(${escapeHtml(r.owner)})</span>` : ""}</li>`).join("")}</ul>`
       : `<div class="tip-empty">No focals in this category</div>`;
     return `
       <div class="kpi-card has-tip">
