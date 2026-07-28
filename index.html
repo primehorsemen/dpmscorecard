@@ -820,6 +820,16 @@ async function exportToPPTX(){
     pptx.defineLayout({ name: "WIDE", width: 13.33, height: 7.5 });
     pptx.layout = "WIDE";
 
+    // Pastel header colors matching the source OKR tracker screenshots
+    const HEAD_GREEN = "E2EFDA";   // Focal
+    const HEAD_BLUE  = "DDEBF7";   // Unit / Updates
+    const HEAD_WHITE = "F2F2F2";   // Base / Stretch
+    const HEAD_PURPLE = "E4DFEC";  // Current
+    const ROW_ALT = "FAFAFA";
+
+    const counts = computeStatusCounts(ROWS);
+    const total = ROWS.length;
+
     // --- Slide 1: Title ---
     let slide = pptx.addSlide();
     slide.background = { color: NAVY_HEX };
@@ -828,52 +838,11 @@ async function exportToPPTX(){
     const genDate = new Date().toLocaleDateString('en-MY', { day:'2-digit', month:'long', year:'numeric' });
     slide.addText(`Generated ${genDate} · Live export from DPM Scorecard Dashboard`, { x:0.6, y:3.55, w:10, h:0.4, fontSize:12, color:"B9C3D6" });
 
-    // --- Slide 2: Overview ---
-    const metrics = computeHeaderMetrics();
-    slide = pptx.addSlide();
-    slide.addText("Overview", { x:0.5, y:0.35, w:8, h:0.55, fontSize:22, bold:true, color:NAVY_HEX });
-    const kpis = [
-      { label:"Budget FY2025", val: metrics.budget },
-      { label:"Value Realized", val: metrics.realized },
-      { label:"Value Identified", val: metrics.identified },
-      { label:"Projects Deployed", val: metrics.deployed }
-    ];
-    kpis.forEach((k, i) => {
-      const x = 0.5 + i * 3.1;
-      slide.addText(
-        [
-          { text: k.label.toUpperCase() + "\n", options: { fontSize: 9, color: "98A2B3", bold: true } },
-          { text: k.val, options: { fontSize: 18, bold: true, color: NAVY_HEX, breakLine: true } }
-        ],
-        { x, y: 1.15, w: 2.85, h: 1.3, fill: { color: "F5F6F8" }, line: { color: "E3E6EC", width: 1 }, margin: 10, valign: "top" }
-      );
-    });
-
-    const counts = computeStatusCounts(ROWS);
-    const total = ROWS.length;
-    slide.addText("Status Distribution", { x:0.5, y:2.75, w:8, h:0.4, fontSize:14, bold:true, color:NAVY_HEX });
-    const statusTable = [[
-      { text:"Status", options:{ bold:true, fill:{color:NAVY_HEX}, color:"FFFFFF", fontSize:10 } },
-      { text:"Count", options:{ bold:true, fill:{color:NAVY_HEX}, color:"FFFFFF", fontSize:10, align:"center" } }
-    ]].concat(Object.entries(STATUS_LABEL).map(([k, label]) => [
-      { text: label, options: { fontSize: 10 } },
-      { text: String(counts[k] || 0), options: { fontSize: 10, align: "center" } }
-    ]));
-    slide.addTable(statusTable, { x:0.5, y:3.2, w:4, colW:[3,1], border:{ type:"solid", color:"E3E6EC", pt:0.5 } });
-
-    // --- Section slides (spreadsheet-style, matching the original tracker look) ---
-    // Pastel header colors matching the source OKR tracker screenshots
-    const HEAD_GREEN = "E2EFDA";   // Focal
-    const HEAD_BLUE  = "DDEBF7";   // Unit / Latest Update
-    const HEAD_WHITE = "F2F2F2";   // Base / Stretch
-    const HEAD_PURPLE = "E4DFEC";  // Current
-    const ROW_ALT = "FAFAFA";
-
+    // --- Slides 2-4: Dashboard tab — one spreadsheet-style table per section ---
     [1, 2, 3].forEach(secNum => {
       const secRows = ROWS.filter(r => r.section === secNum);
       const s = pptx.addSlide();
 
-      // Title bar — merged pastel-green header, like the source tracker's objective row
       s.addText(`OKR 1: Continuous Value Creation — ${SECTIONS[secNum]}`, {
         x:0.4, y:0.3, w:12.5, h:0.5, fontSize:16, bold:true, color:NAVY_HEX,
         fill:{ color: HEAD_GREEN }, align:"left", valign:"middle", margin:8
@@ -908,7 +877,75 @@ async function exportToPPTX(){
       });
     });
 
-    // --- Final slide: Year-End Projection ---
+    // --- Slide 5: IV. Overview ---
+    const metrics = computeHeaderMetrics();
+    slide = pptx.addSlide();
+    slide.addText("IV.  Overview", { x:0.5, y:0.35, w:8, h:0.55, fontSize:22, bold:true, color:NAVY_HEX });
+    const kpis = [
+      { label:"Budget FY2025", val: metrics.budget },
+      { label:"Value Realized", val: metrics.realized },
+      { label:"Value Identified", val: metrics.identified },
+      { label:"Projects Deployed", val: metrics.deployed }
+    ];
+    kpis.forEach((k, i) => {
+      const x = 0.5 + i * 3.1;
+      slide.addText(
+        [
+          { text: k.label.toUpperCase() + "\n", options: { fontSize: 9, color: "98A2B3", bold: true } },
+          { text: k.val, options: { fontSize: 18, bold: true, color: NAVY_HEX, breakLine: true } }
+        ],
+        { x, y: 1.15, w: 2.85, h: 1.3, fill: { color: "F5F6F8" }, line: { color: "E3E6EC", width: 1 }, margin: 10, valign: "top" }
+      );
+    });
+    slide.addText("Status counts across all focals", { x:0.5, y:2.75, w:8, h:0.4, fontSize:14, bold:true, color:NAVY_HEX });
+    const statusTable = [[
+      { text:"Status", options:{ bold:true, fill:{color:NAVY_HEX}, color:"FFFFFF", fontSize:10 } },
+      { text:"Count", options:{ bold:true, fill:{color:NAVY_HEX}, color:"FFFFFF", fontSize:10, align:"center" } }
+    ]].concat(Object.entries(STATUS_LABEL).map(([k, label]) => [
+      { text: label, options: { fontSize: 10 } },
+      { text: String(counts[k] || 0), options: { fontSize: 10, align: "center" } }
+    ]));
+    slide.addTable(statusTable, { x:0.5, y:3.2, w:4, colW:[3,1], border:{ type:"solid", color:"E3E6EC", pt:0.5 } });
+
+    // --- Slide 6: V. Status Distribution by Section (stacked bar per section) ---
+    slide = pptx.addSlide();
+    slide.addText("V.  Status Distribution by Section", { x:0.5, y:0.35, w:10, h:0.55, fontSize:22, bold:true, color:NAVY_HEX });
+    const barX = 2.6, barW = 8.5, barH = 0.4;
+    [1, 2, 3].forEach((secNum, idx) => {
+      const y = 1.3 + idx * 1.0;
+      const secRows = ROWS.filter(r => r.section === secNum);
+      const secCounts = computeStatusCounts(secRows);
+      const secTotal = secRows.length;
+      slide.addText(SECTIONS[secNum], { x:0.4, y:y, w:2.1, h:barH, fontSize:11, bold:true, color:NAVY_HEX, valign:"middle" });
+      let cursorX = barX;
+      Object.entries(secCounts).filter(([,v]) => v > 0).forEach(([k, v]) => {
+        const segW = (v / secTotal) * barW;
+        slide.addShape(pptx.ShapeType.rect, { x:cursorX, y:y, w:segW, h:barH, fill:{ color: STATUS_HEX[k] }, line:{ type:"none" } });
+        cursorX += segW;
+      });
+      slide.addText(`${secTotal} focals`, { x: barX + barW + 0.15, y:y, w:1.2, h:barH, fontSize:10, color:"98A2B3", valign:"middle" });
+    });
+
+    // --- Slide 7: VI. Timeline to Year-End 2026 ---
+    slide = pptx.addSlide();
+    slide.addText("VI.  Timeline to Year-End 2026", { x:0.5, y:0.35, w:10, h:0.55, fontSize:22, bold:true, color:NAVY_HEX });
+    const timelineItems = [];
+    timelineItems.push({ date: TODAY, label: "Today — tracker checkpoint", sub: "Current snapshot of all focals" });
+    MILESTONES.forEach(m => timelineItems.push({ date: m.date, label: m.label, sub: m.sub }));
+    timelineItems.push({ date: YEAR_END, label: "Year-End Target — 31 December 2026", sub: "All focals expected to be assessed against Base / Stretch" });
+    timelineItems.sort((a, b) => a.date - b.date);
+
+    let ty = 1.15;
+    timelineItems.forEach(it => {
+      slide.addText(fmtDate(it.date).toUpperCase(), { x:0.5, y:ty, w:1.7, h:0.5, fontSize:9.5, bold:true, color:GOLD_HEX });
+      slide.addText([
+        { text: it.label + "\n", options:{ fontSize:11.5, bold:true, color:NAVY_HEX, breakLine:true } },
+        { text: it.sub, options:{ fontSize:9.5, color:"98A2B3" } }
+      ], { x:2.3, y:ty, w:10.3, h:0.55, valign:"top" });
+      ty += 0.62;
+    });
+
+    // --- Slide 8: VII. Year-End Projection ---
     const achieved = counts.metbase + counts.metstretch;
     const atRisk = counts.blocked + counts.notstarted;
     const pctAchieved = total ? Math.round((achieved / total) * 100) : 0;
@@ -916,7 +953,7 @@ async function exportToPPTX(){
 
     const pSlide = pptx.addSlide();
     pSlide.background = { color: NAVY_HEX };
-    pSlide.addText("Year-End Projection", { x:0.6, y:0.5, w:10, h:0.6, fontSize:24, bold:true, color:"FFFFFF" });
+    pSlide.addText("VII.  Year-End Projection", { x:0.6, y:0.5, w:10, h:0.6, fontSize:24, bold:true, color:"FFFFFF" });
     pSlide.addText([
       { text: `${daysLeft} `, options:{ bold:true, fontSize:28, color:GOLD_HEX } },
       { text: "days remaining to 31 December 2026\n\n", options:{ fontSize:14, color:"D9E0EE", breakLine:true } },
