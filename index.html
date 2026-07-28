@@ -861,32 +861,50 @@ async function exportToPPTX(){
     ]));
     slide.addTable(statusTable, { x:0.5, y:3.2, w:4, colW:[3,1], border:{ type:"solid", color:"E3E6EC", pt:0.5 } });
 
-    // --- Section slides (one table per section) ---
+    // --- Section slides (spreadsheet-style, matching the original tracker look) ---
+    // Pastel header colors matching the source OKR tracker screenshots
+    const HEAD_GREEN = "E2EFDA";   // Focal
+    const HEAD_BLUE  = "DDEBF7";   // Unit / Latest Update
+    const HEAD_WHITE = "F2F2F2";   // Base / Stretch
+    const HEAD_PURPLE = "E4DFEC";  // Current
+    const ROW_ALT = "FAFAFA";
+
     [1, 2, 3].forEach(secNum => {
       const secRows = ROWS.filter(r => r.section === secNum);
       const s = pptx.addSlide();
-      s.addText(SECTIONS[secNum], { x:0.5, y:0.35, w:10, h:0.5, fontSize:20, bold:true, color:NAVY_HEX });
 
-      const header = ["Focal", "Base", "Stretch", "Current", "Status", "Latest Update"].map(t => (
-        { text: t, options: { bold:true, fill:{color:NAVY_HEX}, color:"FFFFFF", fontSize:10 } }
-      ));
-      const rows = secRows.map(row => {
+      // Title bar — merged pastel-green header, like the source tracker's objective row
+      s.addText(`OKR 1: Continuous Value Creation — ${SECTIONS[secNum]}`, {
+        x:0.4, y:0.3, w:12.5, h:0.5, fontSize:16, bold:true, color:NAVY_HEX,
+        fill:{ color: HEAD_GREEN }, align:"left", valign:"middle", margin:8
+      });
+
+      const header = [
+        { text:"Focal", options:{ bold:true, fill:{color:HEAD_GREEN}, color:NAVY_HEX, fontSize:10 } },
+        { text:"Base", options:{ bold:true, fill:{color:HEAD_WHITE}, color:NAVY_HEX, fontSize:10 } },
+        { text:"Stretch", options:{ bold:true, fill:{color:HEAD_WHITE}, color:NAVY_HEX, fontSize:10 } },
+        { text:"Current", options:{ bold:true, fill:{color:HEAD_PURPLE}, color:NAVY_HEX, fontSize:10 } },
+        { text:"Status", options:{ bold:true, fill:{color:"FFFFFF"}, color:NAVY_HEX, fontSize:10 } },
+        { text:"Updates", options:{ bold:true, fill:{color:HEAD_BLUE}, color:NAVY_HEX, fontSize:10 } }
+      ];
+      const rows = secRows.map((row, i) => {
         const eff = effective(row);
         const groups = buildUpdateGroups(row, eff);
         const lastGroup = groups[groups.length - 1];
         const latest = lastGroup ? lastGroup.items[lastGroup.items.length - 1] : "";
+        const bg = i % 2 === 0 ? "FFFFFF" : ROW_ALT;
         return [
-          { text: row.owner ? `${row.focal} (${row.owner})` : row.focal, options:{ fontSize:9.5 } },
-          { text: eff.base, options:{ fontSize:9.5 } },
-          { text: eff.stretch, options:{ fontSize:9.5 } },
-          { text: eff.current || "—", options:{ fontSize:9.5 } },
-          { text: STATUS_LABEL[eff.status], options:{ fontSize:9.5, bold:true, color: STATUS_HEX[eff.status] } },
-          { text: latest || "", options:{ fontSize:8.5 } }
+          { text: row.owner ? `${row.focal} (${row.owner})` : row.focal, options:{ fontSize:9.5, fill:{color:bg} } },
+          { text: eff.base, options:{ fontSize:9.5, fill:{color:bg}, align:"center" } },
+          { text: eff.stretch, options:{ fontSize:9.5, fill:{color:bg}, align:"center" } },
+          { text: eff.current || "—", options:{ fontSize:9.5, fill:{color:bg}, align:"center" } },
+          { text: "●  " + STATUS_LABEL[eff.status], options:{ fontSize:9.5, fill:{color:bg}, color: STATUS_HEX[eff.status], bold:true } },
+          { text: latest || "", options:{ fontSize:8.5, fill:{color:bg} } }
         ];
       });
       s.addTable([header, ...rows], {
-        x:0.4, y:0.95, w:12.5, colW:[2.6,1.3,1.3,1.3,1.4,4.6],
-        border:{ type:"solid", color:"E3E6EC", pt:0.5 }, autoPage:true
+        x:0.4, y:1.0, w:12.5, colW:[2.6,1.2,1.2,1.2,1.6,4.7],
+        border:{ type:"solid", color:"D9D9D9", pt:0.5 }, autoPage:true
       });
     });
 
